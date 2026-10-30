@@ -1,5 +1,7 @@
 # Credits
 
+**Author:** Sean Shaffer ([@SeanShaffer88](https://github.com/SeanShaffer88))
+
 ## Inspiration (no code used)
 
 - [AnyBurn](https://www.anyburn.com/): task-grid layout and feature set.
@@ -18,3 +20,29 @@
 - [WinISOPilot](https://github.com/SeanShaffer88/WinISOPilot): shares the USB writer and, from 2.0, the Windows ISO customization.
 
 Third-party code and its licenses will be listed here when it is added.
+
+## Planned third-party components (D-012)
+Final list and versions are pinned in `Cargo.lock`; licenses checked with `cargo deny` before each release.
+
+| Component | Use | License | Linking |
+|---|---|---|---|
+| egui / eframe | UI | MIT / Apache-2.0 | static |
+| AccessKit | accessibility | MIT / Apache-2.0 | static |
+| windows-rs | Win32 / COM bindings | MIT / Apache-2.0 | static |
+| Symphonia | audio decoding | MPL-2.0 | static (file-level copyleft; unmodified) |
+| Fluent (fluent-rs) | localization | MIT / Apache-2.0 | static |
+| clap | CLI | MIT / Apache-2.0 | static |
+| zip | spanning backup | MIT | static |
+| LAME | MP3 encoding | LGPL-2.0+ | **dynamic**, user-replaceable DLL |
+| libopus / libvorbis | Opus / Vorbis encoding | BSD-3-Clause | static |
+| Microsoft Media Foundation | AAC / WMA | part of Windows | system |
+| IMAPI2 | disc burning | part of Windows | system |
+
+## Data services (opt-in)
+- MusicBrainz metadata (CC0 core data)
+- AccurateRip checksum database
+
+## Icons
+- Application icon and logo: original artwork for this project.
+- UAC shield: system stock icon (`SIID_SHIELD`).
+

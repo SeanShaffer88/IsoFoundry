@@ -1,0 +1,61 @@
+name: Drive report
+description: Share how IsoFoundry worked with your optical drive or USB device
+title: "[Drive report] <model> – <media> – <task>"
+labels: ["drive-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        In IsoFoundry use **Help → Export drive report** and attach the `.json` file.
+        Serial numbers and file paths are removed automatically; check the file before attaching.
+  - type: input
+    id: version
+    attributes:
+      label: IsoFoundry version
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows
+      options: ["Windows 11 x64", "Windows 11 ARM64", "Windows 10 22H2 x64", "Other"]
+    validations:
+      required: true
+  - type: input
+    id: drive
+    attributes:
+      label: Drive or USB device (model, firmware)
+    validations:
+      required: true
+  - type: input
+    id: media
+    attributes:
+      label: Media (type, brand, speed rating)
+      placeholder: "DVD+R Verbatim 16x"
+  - type: dropdown
+    id: task
+    attributes:
+      label: Task
+      multiple: true
+      options: [Burn image, Burn files, Erase, Copy to image, Copy disc, Rip audio, Burn audio, Burn MP3, Burn video folder, Surface test, Quality scan, Drive info, Bootable USB, Install Windows to USB, USB to image, Backup]
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: ["Worked", "Worked with problems", "Failed"]
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened
+  - type: textarea
+    id: report
+    attributes:
+      label: Drive report file
+      description: Drag the exported .json here
+    validations:
+      required: true
