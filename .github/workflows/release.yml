@@ -1,0 +1,33 @@
+name: Release
+
+# Publishes a GitHub release when a release/v* branch is pushed (the tag is
+# created at that commit). Notes come from the matching CHANGELOG section.
+# Build and asset steps will be added once there is code to build.
+
+on:
+  push:
+    branches: ['release/v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#release/}"
+          ver="${v#v}"
+          awk -v ver="$ver" '
+            $0 ~ "^## \\[" ver "\\]" {on=1; print; next}
+            on && /^## \[/ {exit}
+            on {print}' CHANGELOG.md > notes.md
+          pre=()
+          case "$v" in v0.*) pre+=(--prerelease);; esac
+          gh release create "$v" --target "$GITHUB_SHA" --title "IsoFoundry $v" --notes-file notes.md "${pre[@]}"
