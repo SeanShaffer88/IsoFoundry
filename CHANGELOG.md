@@ -2,9 +2,9 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.0.2] - 2026-10-30
 
-Still planning; no application code.
+Planning release: no application code yet.
 
 ### Added
 - docs/ARCHITECTURE.md: process model (unelevated app + elevated helper), crates, drive layer (IMAPI2 / MMC / fake drive), job safety and recovery, CLI, performance budgets.

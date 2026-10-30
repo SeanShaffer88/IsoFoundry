@@ -4,7 +4,7 @@
 
 **Open Source Disc Burning, Imaging & Bootable USB Suite** for Windows 10 22H2 / 11 (x64 and ARM64), in the spirit of AnyBurn Pro: dark UI with a red accent and a grid of tasks.
 
-> Status: **planning complete, parked** until Win10Pilot is complete. No application release yet (0.0.1 = planning docs). See [ROADMAP](docs/roadmap.md).
+> Status: **planning complete, parked** until Win10Pilot is complete. No application release yet (0.0.x = planning docs). See [ROADMAP](docs/roadmap.md).
 
 ## What it does (planned for 1.0)
 
