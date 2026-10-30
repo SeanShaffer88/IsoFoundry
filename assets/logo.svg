@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" role="img" aria-label="IsoFoundry">
+  <rect width="720" height="160" rx="16" fill="#0E0E10"/>
+  <g transform="translate(16 8) scale(0.56)">
+    <defs>
+      <radialGradient id="g" cx="50%" cy="38%" r="55%"><stop offset="0" stop-color="#FFB199"/><stop offset=".35" stop-color="#E0313A"/><stop offset="1" stop-color="#6B0700" stop-opacity="0"/></radialGradient>
+      <linearGradient id="d" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F2F2F5"/><stop offset=".5" stop-color="#9A9AA6"/><stop offset="1" stop-color="#E6E6EC"/></linearGradient>
+      <linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A3A42"/><stop offset="1" stop-color="#141418"/></linearGradient>
+    </defs>
+    <circle cx="128" cy="104" r="96" fill="url(#g)"/>
+    <circle cx="128" cy="100" r="66" fill="url(#d)"/>
+    <circle cx="128" cy="100" r="22" fill="#2A2A30"/><circle cx="128" cy="100" r="9" fill="#0E0E10"/>
+    <path d="M84 70 A54 54 0 0 1 150 52" fill="none" stroke="#FFF" stroke-width="6" stroke-linecap="round" opacity=".7"/>
+    <path d="M40 132 H216 L196 222 Q194 232 184 232 H72 Q62 232 60 222 Z" fill="url(#p)" stroke="#0E0E10" stroke-width="4"/>
+    <path d="M40 132 H216" stroke="#E0313A" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <text x="180" y="100" font-family="Segoe UI Variable Display, Segoe UI, sans-serif" font-size="68" font-weight="700" fill="#FFFFFF">IsoFoundry</text>
+</svg>
