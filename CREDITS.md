@@ -7,6 +7,10 @@
 - [windows2usb](https://github.com/ValdikSS/windows2usb) (Apache-2.0): Windows USB layout modes, write-through progress.
 - [MultiOS-USB](https://github.com/Mexit/MultiOS-USB) (GPL-3.0) and [GLIM](https://github.com/thias/glim) (public domain configs): multiboot USB design. GPL code can't be copied into this MIT project.
 - [Lufus](https://github.com/Hogjects/Lufus) (MIT): UI reference.
+- [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) (MIT): auto-action on disc insert, parallel drives, notifications.
+- [TotalImage](https://github.com/TotalImage/TotalImage) (MIT): image editor reference.
+- [Redumper GUI](https://github.com/Deterous/Redumper-GUI) (GPL-3.0): preservation dumping UI reference.
+- [extract-xiso](https://github.com/XboxDev/extract-xiso): Xbox XISO filesystem reference.
 - Nero, Ashampoo Burning Studio, BurnAware, cdrtfe, ExplorerFab, Alcohol 120%, CDBurnerXP, CloneCD/CloneDVD: feature references.
 
 ## Related
