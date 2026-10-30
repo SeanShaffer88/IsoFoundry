@@ -20,6 +20,9 @@ Out of scope: anything for copy-protected discs (SecuROM, SafeDisc, LibCrypt and
 ### USB
 
 - [ ] Bootable USB writer shared with WinISOPilot (`usbwriter` crate).
+- [ ] Windows installer layouts (from [windows2usb](https://github.com/ValdikSS/windows2usb), ideas only): MBR+FAT32 with split `install.wim` (default; BIOS, UEFI, Secure Boot), GPT+FAT32, GPT+NTFS; Microsoft's own boot files so Secure Boot stays intact; write-through I/O so progress is real.
+- [ ] **Multiboot USB** (ideas from [MultiOS-USB](https://github.com/Mexit/MultiOS-USB), GPL-3.0, and [GLIM](https://github.com/thias/glim), public-domain configs): install a boot menu once, then copy any number of ISO/WIM files onto the stick and pick one at boot. Linux ISOs boot by GRUB loopback; WinPE/Windows setup from WIM/ISO; BIOS and UEFI; Secure Boot handled without asking users to disable it where possible; per-ISO boot options survive updates. Out of scope until the single-ISO writer is verified.
+- [ ] UI reference for a modern, simple writer: [Lufus](https://github.com/Hogjects/Lufus) (MIT, Linux).
 
 ## 2.0: Windows ISO customization
 
