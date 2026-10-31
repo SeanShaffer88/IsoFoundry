@@ -25,7 +25,7 @@ The helper exits when its job finishes. It accepts only typed job messages (serd
 | `isofoundry-helper` | elevated binary | windows |
 | `if-core` | job model, journal, settings, errors (stable codes) | serde, thiserror |
 | `if-drive` | `OpticalDrive` trait; IMAPI2 backend; MMC/SPTI backend; fake backend | windows |
-| `if-image` | read/write ISO9660/Joliet/UDF, BIN/CUE, CCD, raw IMG, CHD/zstd; readers for MDS, NRG, CDI | — |
+| `if-image` | read/write ISO9660/Joliet/UDF, BIN/CUE, CCD, raw IMG, CHD; readers for MDS, NRG, CDI | — |
 | `if-audio` | decode (Symphonia, MF), encode (FLAC, LAME dyn, Opus, Vorbis, MF AAC), CD-DA ripping, CUE, CD-Text | symphonia |
 | `if-backup` | ZIP64 spanning, manifest, AES-256 | zip |
 | `usbwriter` | shared with WinISOPilot: enumerate, lock, partition (MBR/GPT), write image, boot files | windows |

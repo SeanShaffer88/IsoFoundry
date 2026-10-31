@@ -2,6 +2,12 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Compressed image format decided: CHD (D-039).
+- Shared-crate repo name confirmed: `foundry-kit` (D-040).
+
 ## [0.0.2] - 2026-10-30
 
 Planning release: no application code yet.
