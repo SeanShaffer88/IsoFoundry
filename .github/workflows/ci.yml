@@ -60,6 +60,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "helper-check failed" }
           & $exe burn-image --json
           if ($LASTEXITCODE -ne 40) { throw "expected exit 40 (not_implemented), got $LASTEXITCODE" }
+          exit 0  # the expected exit 40 above would otherwise fail the step
       - name: Static CRT check
         shell: pwsh
         run: |
