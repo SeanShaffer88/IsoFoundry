@@ -43,7 +43,7 @@ fn out(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("if-image-write-{name}-{}.iso", std::process::id()))
 }
 
-fn check(path: &PathBuf, kind: FsKind, unicode: bool) {
+fn check(path: &std::path::Path, kind: FsKind, unicode: bool) {
     let mut v = Volume::open(Box::new(IsoFile::open(path).unwrap()), Some(kind)).unwrap();
     let r = v.lookup("readme.txt").unwrap();
     let mut b = vec![0u8; r.size as usize];
