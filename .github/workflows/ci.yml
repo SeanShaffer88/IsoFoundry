@@ -52,7 +52,8 @@ jobs:
         if: matrix.test
         shell: pwsh
         run: |
-          $exe = "target/${{ matrix.target }}/release/isofoundry.exe"
+          # The console twin (shipped as isofoundry.com, D-048) is what scripts run.
+          $exe = "target/${{ matrix.target }}/release/isofoundry-cli.exe"
           $v = & $exe --version
           if ($LASTEXITCODE -ne 0 -or $v -notmatch '^IsoFoundry ') { throw "version failed: $v" }
           & $exe helper-check --json
@@ -62,9 +63,11 @@ jobs:
       - name: Static CRT check
         shell: pwsh
         run: |
-          $dumpbin = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
-          foreach ($f in 'isofoundry.exe', 'isofoundry-helper.exe') {
-            $deps = & $dumpbin.FullName /dependents "target/${{ matrix.target }}/release/$f" | Out-String
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin.exe not found" }
+          foreach ($f in 'isofoundry.exe', 'isofoundry-cli.exe', 'isofoundry-helper.exe') {
+            $deps = & $dumpbin /dependents "target/${{ matrix.target }}/release/$f" | Out-String
             if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { throw "$f links the dynamic CRT:`n$deps" }
           }
       - name: Package portable zip
@@ -74,7 +77,9 @@ jobs:
           $name = "IsoFoundry-v$ver-${{ matrix.arch }}-Portable"
           $dir = "dist/$name"
           New-Item -ItemType Directory -Force $dir | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/isofoundry.exe", "target/${{ matrix.target }}/release/isofoundry-helper.exe", LICENSE, README.md, CHANGELOG.md $dir
+          $rel = "target/${{ matrix.target }}/release"
+          Copy-Item "$rel/isofoundry.exe", "$rel/isofoundry-helper.exe", LICENSE, README.md, CHANGELOG.md $dir
+          Copy-Item "$rel/isofoundry-cli.exe" "$dir/isofoundry.com"
           New-Item -ItemType File "$dir/IsoFoundry.portable" | Out-Null
           Compress-Archive -Path "$dir/*" -DestinationPath "dist/$name.zip"
           $h = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()

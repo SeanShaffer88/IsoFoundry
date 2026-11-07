@@ -7,9 +7,17 @@ license.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "isofoundry"
 path = "src/main.rs"
+
+# Console twin, packaged as isofoundry.com (D-048).
+[[bin]]
+name = "isofoundry-cli"
+path = "src/bin/isofoundry-cli.rs"
 
 [dependencies]
 if-core = { path = "../if-core" }

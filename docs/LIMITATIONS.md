@@ -28,5 +28,5 @@ Kept current every release. Items move out only with evidence.
 - LAME MP3 encoding requires `libmp3lame.dll` (not bundled-linked); ARM64 build availability unverified.
 - APE decoding pending verification.
 - Context-menu verbs appear under "Show more options" on Windows 11.
-- CLI from the GUI exe: output attaches to the parent console; in some shells the prompt returns before output finishes. Use `start /wait` or `--log` if needed.
+- Run commands as `isofoundry …` or `isofoundry.com …` (console twin, D-048). Calling `isofoundry.exe …` explicitly still works but the shell does not wait for it or capture its output.
 - Local GNU-toolchain builds are a convenience path; official releases are MSVC builds from CI.
