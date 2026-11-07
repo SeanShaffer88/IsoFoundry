@@ -1090,13 +1090,15 @@ mod tests {
                 Node::dir("d", 0, vec![Node::bytes("b.bin", 0, vec![2; 5000]), Node::bytes("e", 0, vec![])]),
             ],
         );
-        let mut o = Options::default();
-        o.bios = Some(BootImage {
-            source: Source::Bytes(vec![0xB; 2048]),
-            size: 2048,
-            load_sectors: None,
-            info_table: true,
-        });
+        let o = Options {
+            bios: Some(BootImage {
+                source: Source::Bytes(vec![0xB; 2048]),
+                size: 2048,
+                load_sectors: None,
+                info_table: true,
+            }),
+            ..Default::default()
+        };
         let p = plan(&root, o).unwrap();
         assert!(p.vrs.unwrap() + 3 <= 32);
         assert!(p.iso_pt.0 > p.fe_start);
