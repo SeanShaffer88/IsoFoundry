@@ -4,7 +4,19 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 
 | Area | Status | Evidence |
 |---|---|---|
-| All features | Not started | Planning only (see [docs/roadmap.md](docs/roadmap.md)) |
+| Main window, menus, keyboard, focus ring (M0) | Partially verified | wine-9.0 (Ubuntu 9.0~repack-4build3) + Xvfb screenshot, 2026-11-07; not yet on Windows |
+| CLI (`--version`, `list`, `helper-check`, task stubs) | Partially verified | Wine run 2026-11-07; CI smoke test on windows-latest |
+| Helper pipe handshake | Partially verified | Wine run (handshake + ping + version + shutdown); unit tests for framing and nonce |
+| Settings, logs, portable paths | Partially verified | Unit tests (Linux) |
+| Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
+
+## 2026-11-07 — M0 shell
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| A-9 | UAC shield did not render under Wine (`SHGetStockIconInfo`); the button text still says "(requires administrator)" to screen readers and the menu says "(administrator)". | Low | Check on Windows; text fallback already present. |
+| A-10 | Native menu bar stays light in dark mode (no documented dark-menu API). | Low | Recorded in LIMITATIONS. |
+| A-11 | Fonts are recreated on DPI change; an open log/roadmap viewer keeps its old font size until reopened. | Low | Open. |
 
 ## 2026-10-30 — Planning audit
 **Scope:** plan, decisions, design tokens. No code exists.

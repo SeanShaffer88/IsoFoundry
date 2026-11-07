@@ -1,0 +1,28 @@
+[package]
+name = "isofoundry-helper"
+description = "IsoFoundry elevated helper: runs only the typed jobs that need administrator rights"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "isofoundry-helper"
+path = "src/main.rs"
+
+[dependencies]
+if-core = { path = "../if-core" }
+
+[target.'cfg(windows)'.dependencies.windows-sys]
+workspace = true
+features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+]
+
+[build-dependencies]
+winresource = "0.1"

@@ -26,9 +26,9 @@ Final list and versions are pinned in `Cargo.lock`; licenses checked with `cargo
 
 | Component | Use | License | Linking |
 |---|---|---|---|
-| egui / eframe | UI | MIT / Apache-2.0 | static |
-| AccessKit | accessibility | MIT / Apache-2.0 | static |
-| windows-rs | Win32 / COM bindings | MIT / Apache-2.0 | static |
+| windows-sys / windows-rs | Win32 UI + system APIs / COM (IMAPI2) | MIT / Apache-2.0 | static |
+| serde, serde_json, toml | settings, IPC, reports | MIT / Apache-2.0 | static |
+| getrandom | IPC session nonce | MIT / Apache-2.0 | static |
 | Symphonia | audio decoding | MPL-2.0 | static (file-level copyleft; unmodified) |
 | Fluent (fluent-rs) | localization | MIT / Apache-2.0 | static |
 | clap | CLI | MIT / Apache-2.0 | static |

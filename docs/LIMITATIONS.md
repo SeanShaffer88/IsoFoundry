@@ -17,6 +17,12 @@ Kept current every release. Items move out only with evidence.
 - Windows image customization arrives in 2.0. Offline servicing with the inbox DISM API is blocked when the host DISM is older than the image build unless a matching Windows ADK DISM is installed.
 - Windows ISO download relies on Microsoft's site and the Fido script; Microsoft can block link generation.
 
+## M0 shell
+- No task runs yet: every task button and CLI subcommand reports the milestone it ships in.
+- Verified only under Wine and in CI so far, not on a real Windows desktop (D-047).
+- The menu bar uses the light system style; Windows has no documented dark menu bar.
+- Installer (`Setup.exe`), MSI and PortableApps.com packages are not built yet; CI produces portable zips only.
+
 ## Platform
 - Windows 10 22H2 and 11 only. ARM64 builds are produced but **Unverified** until run on ARM64 hardware.
 - LAME MP3 encoding requires `libmp3lame.dll` (not bundled-linked); ARM64 build availability unverified.
