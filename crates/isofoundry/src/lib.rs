@@ -4,6 +4,7 @@
 
 pub mod cli;
 pub mod cli_image;
+pub mod cli_mount;
 pub mod layout;
 pub mod theme;
 #[cfg(windows)]

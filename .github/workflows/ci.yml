@@ -61,6 +61,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "helper-check failed" }
           & $exe burn-image --json
           if ($LASTEXITCODE -ne 40) { throw "expected exit 40 (not_implemented), got $LASTEXITCODE" }
+          # Mount: an ISO directly and a CHD through a temporary ISO (D-005).
+          $fx = "crates/if-image/tests/fixtures"
+          foreach ($img in @("$fx/plain.iso", "$fx/plain_cd.chd")) {
+            $r = & $exe mount $img --json | ConvertFrom-Json
+            if (-not $r.ok) { throw "mount $img failed" }
+            $root = ($r.result -replace '^Mounted at (\S+).*$', '$1')
+            Write-Host "mounted $img at $root"
+            if (-not (Test-Path (Join-Path $root 'README.TXT'))) { throw "README.TXT not visible on $root" }
+            & $exe unmount $img
+            if ($LASTEXITCODE -ne 0) { throw "unmount $img failed" }
+          }
           exit 0  # the expected exit 40 above would otherwise fail the step
       - name: Static CRT check
         shell: pwsh

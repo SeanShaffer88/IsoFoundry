@@ -16,6 +16,7 @@ pub mod container;
 pub mod convert;
 pub mod cue;
 pub mod disc;
+pub mod edit;
 pub mod eltorito;
 pub mod fs;
 pub mod iso9660;

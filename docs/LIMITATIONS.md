@@ -23,6 +23,8 @@ Kept current every release. Items move out only with evidence.
 - CHD: reads `zlib` and `cdzl` hunks only. CHDs compressed with chdman's defaults (LZMA, FLAC, Huffman) need `chdman copy -c cdzl` (CD) or `-c zlib` (DVD) first. Parent (delta) CHDs are not supported. IsoFoundry writes `cdzl`/`zlib`, so its CHDs are a few percent larger than chdman's defaults.
 - NRG and MDS/MDF are read only and unverified; first session only. Multi-session images and CD-Text are not converted.
 - Converting a multi-track CD to ISO keeps only the first data track.
+- Editing rewrites the image as ISO 9660 + Joliet + UDF 1.02. Hidden flags, Rock Ridge permissions and UDF 2.x extras of the source are not kept. Images that boot with floppy or hard-disk emulation can't be edited yet. Boot images that are also visible files are stored twice.
+- Mounting uses `AttachVirtualDisk`; whether it works without administrator rights depends on Windows policy and is untested outside CI (where the account is an administrator). A mount lasts until `unmount` or restart.
 
 ## M0 shell
 - No task runs yet: every task button and CLI subcommand reports the milestone it ships in.

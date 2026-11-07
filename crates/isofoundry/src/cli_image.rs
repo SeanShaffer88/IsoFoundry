@@ -17,6 +17,8 @@ pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs 
   image-info IMAGE      Format, tracks, file systems, label and boot entries\n\
   convert-image IMAGE --out FILE [--to iso|cue|ccd|chd|chd-cd]\n\
                        Convert ISO, BIN/CUE, CCD, NRG, MDS, CHD (format from --to or extension)\n\
+  edit-image IMAGE --out NEW [--add DIR=PATH] [--remove P] [--rename P=NAME]\n\
+       [--mkdir P] [--label L]   Change an image and save it as a new file (options repeat, run in order)\n\
   extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660]\n\
                        Copy files out of an image (all, or the file/folder P)\n\
   checksum FILE [--algo crc32,md5,sha1,sha256] [--dat OUT.dat]\n\
@@ -84,6 +86,7 @@ pub(crate) fn run(cmd: &str, tail: &[String], g: &Global, o: &mut Out<'_>, log: 
         "image-info" => info(tail, o),
         "create-image" => create(tail, g, o),
         "convert-image" => convert(tail, g, o),
+        "edit-image" => edit_image(tail, g, o),
         "extract" => extract(tail, g, o),
         "checksum" => checksum(tail, g, o),
         "compare" => compare(tail, o),
@@ -309,6 +312,56 @@ fn convert(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
             o.ok_text(&format!("  {f}"));
         }
         for w in &s.warnings {
+            o.ok_text(&format!("  note: {w}"));
+        }
+    }
+    Ok(())
+}
+
+fn edit_image(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
+    use if_image::edit::Edit;
+    let a = parse(tail, &["out", "add", "remove", "rename", "mkdir", "label"]).map_err(usage_err)?;
+    let src = one_path(&a, "IMAGE")?;
+    if !src.is_file() {
+        return Err((Exit::Io, format!("{} not found", src.display())));
+    }
+    let dest = PathBuf::from(a.get("out").ok_or_else(|| usage_err("missing --out NEW"))?);
+    let pair = |v: &str, what: &str| -> Result<(String, String), (Exit, String)> {
+        v.split_once('=')
+            .map(|(x, y)| (x.to_string(), y.to_string()))
+            .ok_or_else(|| usage_err(format!("{what} needs A=B")))
+    };
+    let mut edits = Vec::new();
+    for (k, v) in &a.opts {
+        edits.push(match k.as_str() {
+            "add" => {
+                let (dir, from) = pair(v, "--add")?;
+                Edit::Add { dir, from: PathBuf::from(from) }
+            }
+            "remove" => Edit::Remove(v.clone()),
+            "rename" => {
+                let (path, to) = pair(v, "--rename")?;
+                Edit::Rename { path, to }
+            }
+            "mkdir" => Edit::MkDir(v.clone()),
+            "label" => Edit::Label(v.clone()),
+            _ => continue,
+        });
+    }
+    if g.dry_run {
+        let mut p = if_image::edit::Project::open(&src).map_err(image_err)?;
+        for e in &edits {
+            p.apply(e).map_err(image_err)?;
+        }
+        o.ok_text(&format!("would apply {} change(s) and write {}", edits.len(), dest.display()));
+        return Ok(());
+    }
+    let (sum, warnings) = if_image::edit::edit(&src, &dest, &edits, |_, _| true).map_err(image_err)?;
+    if o.json {
+        o.ok_text(&json!({ "ok": true, "out": dest.display().to_string(), "bytes": sum.sectors * 2048, "files": sum.files, "warnings": warnings }).to_string());
+    } else {
+        o.ok_text(&format!("Saved {} ({} bytes, {} files)", dest.display(), sum.sectors * 2048, sum.files));
+        for w in &warnings {
             o.ok_text(&format!("  note: {w}"));
         }
     }

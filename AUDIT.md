@@ -14,6 +14,8 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | ISO writer (ISO 9660/Joliet/UDF 1.02, El Torito) | Partially verified | Round-trip tests; images checked with isoinfo (cdrkit 1.1.11), udfinfo (udftools 2.3: integrity closed, both anchors), xorriso (El Torito BIOS+UEFI, media check good) and 7-Zip (UDF extraction identical to source), 2026-11-07. Not yet booted in a VM or mounted on Windows; >4 GB files tested only by code review |
 | CD formats (BIN/CUE, CCD/IMG/SUB, raw BIN), sector ECC/EDC | Partially verified | Round-trip tests; chdman 0.264 regenerates our ECC-stripped sectors and accepts the raw SHA-1 (it rebuilds ECC with its own code), 2026-11-07 |
 | CHD writer and reader | Partially verified | chdman 0.264 `verify` passes; overall SHA-1 identical to chdman's for data-only, mixed-mode (audio + stored pregap) and DVD images; `extractcd`/`extractdvd` output identical to source; chdman-made fixtures read back exactly. LZMA/FLAC/Huffman/Zstandard CHD hunks not readable |
+| Image editing | Partially verified | Tests: add/remove/rename/mkdir/label on UDF and CHD sources, boot entries kept (BIOS+UEFI images byte-identical); xorriso 1.5 reads the edited boot image, 2026-11-07 |
+| Mount / unmount | Partially verified | CI windows-latest: ISO and CHD (temp ISO) mount, file visible, unmount. Standard-user (non-admin) path untested |
 | NRG, MDS/MDF reading | Unverified | Written from format descriptions; no real images to test (A-7) |
 | Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
 

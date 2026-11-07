@@ -62,10 +62,11 @@ Commands:\n\
                        (--dry-run lists them; --yes deletes)\n\
   help, --help         Show this text\n\
   version, --version   Show the version\n\n\
-Image commands:\n{}\n\
+Image commands:\n{}{}\n\
 Task commands not available yet (exit code 40 until their version ships):\n",
         if_core::APP_VERSION,
-        crate::cli_image::USAGE
+        crate::cli_image::USAGE,
+        crate::cli_mount::USAGE
     );
     for t in tasks::all().filter(|t| !t.is_available()) {
         s.push_str(&format!(
@@ -287,9 +288,9 @@ pub fn run(
             }
             clean(dirs, &g, &mut o)
         }
-        "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" | "convert-image" => {
-            crate::cli_image::run(cmd, tail, &g, &mut o, log)
-        }
+        "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" | "convert-image"
+        | "edit-image" => crate::cli_image::run(cmd, tail, &g, &mut o, log),
+        "mount" | "unmount" => crate::cli_mount::run(cmd, tail, dirs, &mut o),
         other => match tasks::by_cli(other) {
             Some(t) => {
                 let msg = format!(
