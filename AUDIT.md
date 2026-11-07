@@ -8,6 +8,8 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | CLI (`--version`, `list`, `helper-check`, task stubs) | Partially verified | Wine run and GitHub windows-latest CI smoke test (console twin), 2026-11-07 |
 | Helper pipe handshake | Partially verified | Handshake + ping + version + shutdown passed under Wine and on GitHub windows-latest (runner account, no UAC prompt), 2026-11-07; unit tests for framing and nonce. UAC prompt path untested |
 | Settings, logs, portable paths | Partially verified | Unit tests (Linux) |
+| PortableApps.com launcher | Partially verified | Wine 2026-11-07: starts the app, data lands in `Data\settings` |
+| Setup.exe and MSI install/run/uninstall | Pending CI | Checked on every CI run from 2026-11-07 |
 | Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
 
 ## 2026-11-07 — M0 shell

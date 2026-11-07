@@ -38,6 +38,11 @@ Final list and versions are pinned in `Cargo.lock`; licenses checked with `cargo
 | Microsoft Media Foundation | AAC / WMA | part of Windows | system |
 | IMAPI2 | disc burning | part of Windows | system |
 
+## Build and packaging tools (not redistributed as code)
+- [Inno Setup](https://jrsoftware.org/isinfo.php): builds `Setup.exe`; its setup/uninstall runtime is part of that file (Inno Setup License).
+- [WiX Toolset](https://wixtoolset.org/) v5: builds the MSI (MS-RL).
+- PortableApps.com Format: package layout ([portableapps.com](https://portableapps.com/development/portableapps.com_format)).
+
 ## Data services (opt-in)
 - MusicBrainz metadata (CC0 core data)
 - AccurateRip checksum database

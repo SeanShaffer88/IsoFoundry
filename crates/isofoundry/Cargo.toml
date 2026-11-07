@@ -19,6 +19,11 @@ path = "src/main.rs"
 name = "isofoundry-cli"
 path = "src/bin/isofoundry-cli.rs"
 
+# PortableApps.com launcher, packaged as IsoFoundryPortable.exe (D-049).
+[[bin]]
+name = "isofoundry-portable"
+path = "src/bin/isofoundry-portable.rs"
+
 [dependencies]
 if-core = { path = "../if-core" }
 serde_json.workspace = true

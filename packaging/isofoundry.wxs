@@ -1,0 +1,67 @@
+<!--
+  WiX v5 source for IsoFoundry-v{VERSION}-x64-Setup.msi (D-044).
+  Per-machine install into Program Files (MSI needs administrator rights;
+  use Setup.exe for a per-user install). Major upgrades replace older
+  versions in place.
+
+  Build: wix build -arch x64 -d Version=0.1.0 -d SourceDir=<staging> -o <out.msi> isofoundry.wxs
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="IsoFoundry"
+           Manufacturer="Sean Shaffer"
+           Version="$(var.Version)"
+           UpgradeCode="7C4A2E91-3D5B-4F80-A6E2-91B0C7D3F5A4"
+           Scope="perMachine"
+           Compressed="yes">
+    <SummaryInformation Description="IsoFoundry: open source disc burning, imaging and bootable USB suite" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of IsoFoundry is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Windows 10 22H2 (build 19045) or later. -->
+    <Launch Condition="Installed OR VersionNT64 &gt;= 603" Message="IsoFoundry needs 64-bit Windows 10 or Windows 11." />
+
+    <Icon Id="IsoFoundryIcon" SourceFile="$(var.SourceDir)\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="IsoFoundryIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/SeanShaffer88/IsoFoundry" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/SeanShaffer88/IsoFoundry/issues" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="IsoFoundry">
+        <Component Id="MainExe" Guid="*">
+          <File Id="IsoFoundryExe" Source="$(var.SourceDir)\isofoundry.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="ConsoleTwin" Guid="*">
+          <File Id="IsoFoundryCom" Source="$(var.SourceDir)\isofoundry.com" KeyPath="yes" />
+        </Component>
+        <Component Id="HelperExe" Guid="*">
+          <File Id="IsoFoundryHelperExe" Source="$(var.SourceDir)\isofoundry-helper.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="Docs" Guid="*">
+          <File Id="License" Source="$(var.SourceDir)\LICENSE" KeyPath="yes" />
+          <File Id="Readme" Source="$(var.SourceDir)\README.md" />
+          <File Id="Changelog" Source="$(var.SourceDir)\CHANGELOG.md" />
+        </Component>
+        <Component Id="SystemPath" Guid="3E8F1C27-6A49-4D0B-B5E3-0F27A9C4D861">
+          <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Action="set" Part="last" System="yes" Permanent="no" />
+          <RegistryValue Root="HKLM" Key="Software\IsoFoundry" Name="PathEntry" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="9A2D5F13-C0E4-4B78-8D61-5E3B7A0F2C94">
+        <Shortcut Id="IsoFoundryShortcut" Name="IsoFoundry" Description="Disc burning, imaging and bootable USB" Target="[INSTALLFOLDER]isofoundry.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\IsoFoundry" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="IsoFoundry" Level="1">
+      <ComponentRef Id="MainExe" />
+      <ComponentRef Id="ConsoleTwin" />
+      <ComponentRef Id="HelperExe" />
+      <ComponentRef Id="Docs" />
+      <ComponentRef Id="SystemPath" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

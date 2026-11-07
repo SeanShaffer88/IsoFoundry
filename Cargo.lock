@@ -34,7 +34,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "if-core"
-version = "0.1.0-dev"
+version = "0.1.0"
 dependencies = [
  "getrandom",
  "serde",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry"
-version = "0.1.0-dev"
+version = "0.1.0"
 dependencies = [
  "if-core",
  "serde_json",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry-helper"
-version = "0.1.0-dev"
+version = "0.1.0"
 dependencies = [
  "if-core",
  "windows-sys",
