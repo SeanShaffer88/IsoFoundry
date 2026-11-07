@@ -5,8 +5,8 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | Area | Status | Evidence |
 |---|---|---|
 | Main window, menus, keyboard, focus ring (M0) | Partially verified | wine-9.0 (Ubuntu 9.0~repack-4build3) + Xvfb screenshot, 2026-11-07; not yet on Windows |
-| CLI (`--version`, `list`, `helper-check`, task stubs) | Partially verified | Wine run 2026-11-07; CI smoke test on windows-latest |
-| Helper pipe handshake | Partially verified | Wine run (handshake + ping + version + shutdown); unit tests for framing and nonce |
+| CLI (`--version`, `list`, `helper-check`, task stubs) | Partially verified | Wine run and GitHub windows-latest CI smoke test (console twin), 2026-11-07 |
+| Helper pipe handshake | Partially verified | Handshake + ping + version + shutdown passed under Wine and on GitHub windows-latest (runner account, no UAC prompt), 2026-11-07; unit tests for framing and nonce. UAC prompt path untested |
 | Settings, logs, portable paths | Partially verified | Unit tests (Linux) |
 | Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
 
