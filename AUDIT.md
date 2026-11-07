@@ -9,7 +9,7 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | Helper pipe handshake | Partially verified | Handshake + ping + version + shutdown passed under Wine and on GitHub windows-latest (runner account, no UAC prompt), 2026-11-07; unit tests for framing and nonce. UAC prompt path untested |
 | Settings, logs, portable paths | Partially verified | Unit tests (Linux) |
 | PortableApps.com launcher | Partially verified | Wine 2026-11-07: starts the app, data lands in `Data\settings` |
-| Setup.exe and MSI install/run/uninstall | Pending CI | Checked on every CI run from 2026-11-07 |
+| Setup.exe and MSI install/run/uninstall | Partially verified | Silent per-user Setup.exe and per-machine MSI install, `--version`, uninstall pass on GitHub windows-latest, 2026-11-07; interactive wizard and UAC paths untested |
 | Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
 
 ## 2026-11-07 — M0 shell
