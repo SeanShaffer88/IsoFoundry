@@ -20,6 +20,9 @@ Kept current every release. Items move out only with evidence.
 ## Images
 - UDF virtual partitions (VAT, used by packet-written CD-R/BD-R) cannot be read.
 - UDF metadata partitions (Blu-ray) are implemented but not yet tested against a real disc image.
+- CHD: reads `zlib` and `cdzl` hunks only. CHDs compressed with chdman's defaults (LZMA, FLAC, Huffman) need `chdman copy -c cdzl` (CD) or `-c zlib` (DVD) first. Parent (delta) CHDs are not supported. IsoFoundry writes `cdzl`/`zlib`, so its CHDs are a few percent larger than chdman's defaults.
+- NRG and MDS/MDF are read only and unverified; first session only. Multi-session images and CD-Text are not converted.
+- Converting a multi-track CD to ISO keeps only the first data track.
 
 ## M0 shell
 - No task runs yet: every task button and CLI subcommand reports the milestone it ships in.

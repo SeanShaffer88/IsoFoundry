@@ -9,10 +9,18 @@
 //! - [`fs`]: one tree API over them, plus extraction.
 //! - [`eltorito`]: boot catalog.
 
+pub mod ccd;
+pub mod cd;
+pub mod chd;
 pub mod container;
+pub mod convert;
+pub mod cue;
+pub mod disc;
 pub mod eltorito;
 pub mod fs;
 pub mod iso9660;
+pub mod mds;
+pub mod nrg;
 pub mod source;
 pub mod udf;
 pub mod write;

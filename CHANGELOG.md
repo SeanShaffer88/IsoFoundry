@@ -8,7 +8,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Image reading (`if-image`): ISO 9660 with Rock Ridge names, Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalog (BIOS and UEFI entries). Extraction keeps nothing half-written on cancel and renames names Windows cannot store.
 - Hashing (`if-hash`): CRC32, MD5, SHA-1 and SHA-256 in one pass; Logiqx/redump `.dat` writing and reading.
 - ISO creation (`if-image::write`, `create-image`): ISO 9660 + Joliet + UDF 1.02 bridge sharing one copy of the data, files over 4 GB (multi-extent / split UDF extents), El Torito BIOS (optional boot information table) and UEFI boot entries; written to a `.part` file and renamed when complete.
-- Commands: `image-info`, `extract`, `create-image`, `checksum` (with `--dat`), `compare`, `verify --dat`.
+- Commands: `image-info`, `extract`, `create-image`, `checksum` (with `--dat`), `compare`, `verify --dat`, `convert-image`.
+- CD image formats: BIN/CUE (single and multi-file, MODE1/MODE2/AUDIO), CloneCD CCD/IMG/SUB, sheetless raw `.bin`/`.img`; Nero NRG and Alcohol MDS/MDF read only and marked unverified. Raw sector ECC/EDC generation and checks, Q-subchannel generation.
+- MAME CHD v5 (D-039): CD (`cdzl`) and DVD (`zlib`) writing with duplicate-hunk sharing and the compressed hunk map; reading `zlib`/`cdzl` CHDs from chdman. Output matches chdman 0.264's SHA-1s byte for byte on the test images.
+- Image conversion (`convert-image`): any readable image to ISO, BIN/CUE, CloneCD or CHD (CD or DVD layout). `image-info` now shows the container format and tracks.
 
 ## [0.1.0] - 2026-11-07
 

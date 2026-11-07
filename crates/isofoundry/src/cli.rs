@@ -147,6 +147,13 @@ impl Out<'_> {
         let _ = writeln!(self.out, "{text}");
     }
 
+    /// Progress on stderr in steps of 10% (text mode only).
+    pub(crate) fn progress(&mut self, pct: u32) {
+        if !self.json && pct % 10 == 0 {
+            let _ = writeln!(self.err, "{pct}%");
+        }
+    }
+
     pub(crate) fn fail(&mut self, exit: Exit, message: &str) -> i32 {
         if self.json {
             let _ = writeln!(
@@ -280,7 +287,7 @@ pub fn run(
             }
             clean(dirs, &g, &mut o)
         }
-        "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" => {
+        "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" | "convert-image" => {
             crate::cli_image::run(cmd, tail, &g, &mut o, log)
         }
         other => match tasks::by_cli(other) {
