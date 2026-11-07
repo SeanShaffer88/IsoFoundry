@@ -13,13 +13,17 @@
 - [TotalImage](https://github.com/TotalImage/TotalImage) (MIT): image editor reference.
 - [Redumper GUI](https://github.com/Deterous/Redumper-GUI) (GPL-3.0): preservation dumping UI reference.
 - [extract-xiso](https://github.com/XboxDev/extract-xiso): Xbox XISO filesystem reference.
+- [MAME](https://github.com/mamedev/mame) (BSD-3-Clause for the CHD code): CHD v5 format; chdman 0.264 used to check our output. Format reimplemented, no code copied.
 - Nero, Ashampoo Burning Studio, BurnAware, cdrtfe, ExplorerFab, Alcohol 120%, CDBurnerXP, CloneCD/CloneDVD: feature references.
 
 ## Related
 
 - [WinISOPilot](https://github.com/SeanShaffer88/WinISOPilot): shares the USB writer and, from 2.0, the Windows ISO customization.
 
-Third-party code and its licenses will be listed here when it is added.
+## Third-party crates in use
+- [miniz_oxide](https://github.com/Frommi/miniz_oxide) (MIT / Zlib / Apache-2.0): deflate for CHD.
+- [sha1](https://github.com/RustCrypto/hashes) (RustCrypto, MIT / Apache-2.0): CHD checksums.
+
 
 ## Planned third-party components (D-012)
 Final list and versions are pinned in `Cargo.lock`; licenses checked with `cargo deny` before each release.

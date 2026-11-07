@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf]\n\
        [--boot-bios IMG [--boot-load-sectors N] [--boot-info-table]] [--boot-efi IMG]\n\
                        Build an ISO from files and folders (one folder = its contents)\n\
-  image-info IMAGE      File systems, label, size and boot entries of an image\n\
+  image-info IMAGE      Format, tracks, file systems, label and boot entries\n\
+  convert-image IMAGE --out FILE [--to iso|cue|ccd|chd|chd-cd]\n\
+                       Convert ISO, BIN/CUE, CCD, NRG, MDS, CHD (format from --to or extension)\n\
   extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660]\n\
                        Copy files out of an image (all, or the file/folder P)\n\
   checksum FILE [--algo crc32,md5,sha1,sha256] [--dat OUT.dat]\n\
@@ -81,6 +83,7 @@ pub(crate) fn run(cmd: &str, tail: &[String], g: &Global, o: &mut Out<'_>, log: 
     let r = match cmd {
         "image-info" => info(tail, o),
         "create-image" => create(tail, g, o),
+        "convert-image" => convert(tail, g, o),
         "extract" => extract(tail, g, o),
         "checksum" => checksum(tail, g, o),
         "compare" => compare(tail, o),
@@ -219,6 +222,16 @@ fn info(tail: &[String], o: &mut Out<'_>) -> R {
     let path = one_path(&a, "IMAGE")?;
     let v = open_volume(&path, None)?;
     let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let (format, img) = if_image::container::open_image(&path).map_err(image_err)?;
+    let tracks: Vec<String> = match &img {
+        if_image::container::Image::Cd(d) => d
+            .disc()
+            .tracks
+            .iter()
+            .map(|t| format!("{:02} {:?} at {} ({} sectors)", t.number, t.kind, t.start, t.length))
+            .collect(),
+        if_image::container::Image::Sectors(_) => Vec::new(),
+    };
     let boot: Vec<String> = v
         .boot
         .as_ref()
@@ -237,16 +250,67 @@ fn info(tail: &[String], o: &mut Out<'_>) -> R {
     let fss: Vec<&str> = v.found.iter().map(|k| k.name()).collect();
     if o.json {
         o.ok_text(
-            &json!({ "ok": true, "path": path.display().to_string(), "bytes": size, "label": v.fs.label(),
+            &json!({ "ok": true, "path": path.display().to_string(), "format": format.name(), "tracks": tracks,
+                     "bytes": size, "label": v.fs.label(),
                      "file_systems": fss, "boot": boot })
             .to_string(),
         );
     } else {
         o.ok_text(&format!("Image:        {}", path.display()));
-        o.ok_text(&format!("Size:         {size} bytes ({} sectors)", v.src.sectors()));
+        o.ok_text(&format!("Format:       {}", format.name()));
+        o.ok_text(&format!("Size:         {size} bytes ({} data sectors)", v.src.sectors()));
+        for t in &tracks {
+            o.ok_text(&format!("Track         {t}"));
+        }
         o.ok_text(&format!("Label:        {}", v.fs.label()));
         o.ok_text(&format!("File systems: {}", fss.join(", ")));
         o.ok_text(&format!("Bootable:     {}", if boot.is_empty() { "no".to_string() } else { boot.join(", ") }));
+    }
+    Ok(())
+}
+
+fn convert(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
+    use if_image::convert::{convert, Output};
+    let a = parse(tail, &["out", "to"]).map_err(usage_err)?;
+    let src = one_path(&a, "IMAGE")?;
+    if !src.is_file() {
+        return Err((Exit::Io, format!("{} not found", src.display())));
+    }
+    let dest = PathBuf::from(a.get("out").ok_or_else(|| usage_err("missing --out FILE"))?);
+    let to = match a.get("to") {
+        Some(t) => Output::parse(t)
+            .ok_or_else(|| usage_err(format!("unknown output format {t} (iso, cue, ccd, chd, chd-cd)")))?,
+        None => Output::for_path(&dest).ok_or_else(|| usage_err("can't tell the output format; add --to"))?,
+    };
+    if g.dry_run {
+        let (f, _) = if_image::container::detect(&src).map_err(image_err)?;
+        o.ok_text(&format!("would convert {} ({}) to {:?} at {}", src.display(), f.name(), to, dest.display()));
+        return Ok(());
+    }
+    let mut last = 0u64;
+    let s = convert(&src, &dest, to, &mut |done, total| {
+        let pct = (done * 100).checked_div(total).unwrap_or(100);
+        if pct != last {
+            last = pct;
+            o.progress(pct as u32);
+        }
+        true
+    })
+    .map_err(image_err)?;
+    let files: Vec<String> = s.files.iter().map(|p| p.display().to_string()).collect();
+    if o.json {
+        o.ok_text(
+            &json!({ "ok": true, "source_format": s.source.name(), "files": files, "warnings": s.warnings })
+                .to_string(),
+        );
+    } else {
+        o.ok_text(&format!("Converted {} ({}) to:", src.display(), s.source.name()));
+        for f in &files {
+            o.ok_text(&format!("  {f}"));
+        }
+        for w in &s.warnings {
+            o.ok_text(&format!("  note: {w}"));
+        }
     }
     Ok(())
 }

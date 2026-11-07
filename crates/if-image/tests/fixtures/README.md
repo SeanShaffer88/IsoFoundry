@@ -12,3 +12,5 @@ someone else's writer. Source tree: `readme.txt` ("hello world\n", mtime
 | `plain.iso` | `genisoimage -input-charset utf-8 -V PLAIN` |
 | `udf.iso` | `genisoimage -input-charset utf-8 -udf -J -V "UDF VOL"` |
 | `boot.iso` | `genisoimage -input-charset utf-8 -J -V BOOTME -b boot.img -no-emul-boot -boot-load-size 4 -eltorito-alt-boot -e efi.img -no-emul-boot` |
+| `plain_cd.chd` | `plain.iso` as MODE1/2352 BIN/CUE, then `chdman createcd -c cdzl` (MAME chdman 0.264). Overall SHA1 a2acc8b13372907b7ea10a9e14d577ce4594316b |
+| `plain_dvd.chd` | `chdman createdvd -c zlib -i plain.iso` (chdman 0.264). Overall SHA1 9acf9b6d4fa58ee718e40717222d0f92728e57c0 |
