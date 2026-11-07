@@ -6,7 +6,7 @@ Status: plan, pre-code. Every capability below is **Unverified** until a milesto
 
 ```
 isofoundry.exe  (unelevated, GUI + CLI)
- ├─ ui/            egui task grid, task dialogs, progress, log view
+ ├─ ui/            Win32 task grid (owner-drawn), task dialogs, progress, log view
  ├─ cli/           subcommands → same job structs as the GUI
  ├─ jobs/          Job queue, cancel tokens, operation journal
  └─ ipc/  ──named pipe (per-session nonce, ACL to current user SID)──┐
@@ -21,7 +21,7 @@ The helper exits when its job finishes. It accepts only typed job messages (serd
 
 | Crate | Role | Key deps |
 |---|---|---|
-| `isofoundry` | binary: GUI, CLI, job runner | eframe/egui, clap, fluent |
+| `isofoundry` | binary: GUI, CLI, job runner | windows-sys (Win32 + ComCtl v6) |
 | `isofoundry-helper` | elevated binary | windows |
 | `if-core` | job model, journal, settings, errors (stable codes) | serde, thiserror |
 | `if-drive` | `OpticalDrive` trait; IMAPI2 backend; MMC/SPTI backend; fake backend | windows |
@@ -81,9 +81,9 @@ Every job follows: **plan → preview → confirm (proportional) → journal →
 
 ## 7. UI
 
-- egui with a custom `Visuals` built from `docs/design-tokens.md`.
+- Pure Win32 + Common Controls v6 (D-043): owner-drawn task buttons painted from `docs/design-tokens.md`, native menus, file dialogs and message boxes; dark title bar via `DWMWA_USE_IMMERSIVE_DARK_MODE`.
 - Main window: task grid (see mockup). Each task opens a modal-less task window; multiple tasks can queue.
-- Accessibility: egui AccessKit integration on (UI Automation), full keyboard navigation, visible focus ring, no color-only states, text scaling via Windows text size, high-contrast mode switches to system colors.
+- Accessibility: real `BUTTON` controls (owner-drawn) so UI Automation sees names and roles, tooltips on every control, full keyboard navigation, visible focus ring, no color-only states, text scaling via Windows text size, high-contrast mode switches to system colors.
 - Per-monitor DPI v2 manifest.
 
 ## 8. CLI
@@ -114,7 +114,7 @@ Exit codes: 0 ok, 1 generic, 2 usage, 3 cancelled, 10 no drive/media, 11 media i
 
 ## 9. Data and settings
 
-- Settings: `settings.toml` (versioned `schema = 1`), portable mode when `IsoFoundry.portable` exists next to the exe (Data dir per PortableApps format).
+- Settings: `settings.toml` (versioned `schema = 1`), portable mode when `IsoFoundry.portable` exists next to the exe (`data\` beside the exe; `Data\settings` for the PortableApps format).
 - Logs: rolling text logs, Help → Open log folder; Export diagnostics bundle (redacted).
 - Drive offsets table, codec presets: bundled read-only data files.
 
@@ -122,8 +122,8 @@ Exit codes: 0 ok, 1 generic, 2 usage, 3 cancelled, 10 no drive/media, 11 media i
 
 | Metric | Budget |
 |---|---|
-| Cold start to interactive grid | ≤ 400 ms on SSD |
+| First window render | < 50 ms (Directive V2.0) |
 | Idle CPU | 0% (no polling; drive arrival via `WM_DEVICECHANGE`) |
-| Idle RAM | ≤ 40 MB |
+| Idle working set | < 15 MB (Directive V2.0) |
 | Burn buffer underruns | 0 at max rated speed with verify on (buffer 64 MB default) |
 | ISO build from 50k files | ≤ 1.5× raw copy time |

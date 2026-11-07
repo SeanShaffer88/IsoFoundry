@@ -1,0 +1,95 @@
+name: CI
+
+# Builds, lints and tests on Windows with MSVC and a static CRT (D-030,
+# D-043). x64 runs the tests; ARM64 is cross-built (no ARM64 runner tests).
+# Each build uploads a portable zip with SHA256SUMS.txt for manual testing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+            test: true
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
+            test: false
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install Rust target and tools
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup target add ${{ matrix.target }}
+      - name: Format
+        if: matrix.test
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked --target ${{ matrix.target }} -- -D warnings
+      - name: Test
+        if: matrix.test
+        run: cargo test --workspace --locked --target ${{ matrix.target }}
+      - name: Build release
+        run: cargo build --workspace --release --locked --target ${{ matrix.target }}
+      - name: CLI smoke test
+        if: matrix.test
+        shell: pwsh
+        run: |
+          # The console twin (shipped as isofoundry.com, D-048) is what scripts run.
+          $exe = "target/${{ matrix.target }}/release/isofoundry-cli.exe"
+          $v = & $exe --version
+          if ($LASTEXITCODE -ne 0 -or $v -notmatch '^IsoFoundry ') { throw "version failed: $v" }
+          & $exe helper-check --json
+          if ($LASTEXITCODE -ne 0) { throw "helper-check failed" }
+          & $exe burn-image --json
+          if ($LASTEXITCODE -ne 40) { throw "expected exit 40 (not_implemented), got $LASTEXITCODE" }
+          exit 0  # the expected exit 40 above would otherwise fail the step
+      - name: Static CRT check
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin.exe not found" }
+          foreach ($f in 'isofoundry.exe', 'isofoundry-cli.exe', 'isofoundry-helper.exe') {
+            $deps = & $dumpbin /dependents "target/${{ matrix.target }}/release/$f" | Out-String
+            if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { throw "$f links the dynamic CRT:`n$deps" }
+          }
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $name = "IsoFoundry-v$ver-${{ matrix.arch }}-Portable"
+          $dir = "dist/$name"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $rel = "target/${{ matrix.target }}/release"
+          Copy-Item "$rel/isofoundry.exe", "$rel/isofoundry-helper.exe", LICENSE, README.md, CHANGELOG.md $dir
+          Copy-Item "$rel/isofoundry-cli.exe" "$dir/isofoundry.com"
+          New-Item -ItemType File "$dir/IsoFoundry.portable" | Out-Null
+          Compress-Archive -Path "$dir/*" -DestinationPath "dist/$name.zip"
+          $h = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$h  $name.zip" | Out-File -Encoding ascii dist/SHA256SUMS.txt
+      - name: Upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: IsoFoundry-${{ matrix.arch }}-portable
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          retention-days: 14

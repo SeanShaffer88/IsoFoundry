@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+  <assemblyIdentity type="win32" name="SeanShaffer88.IsoFoundry" version="0.1.0.0" processorArchitecture="*"/>
+  <description>IsoFoundry</description>
+  <!-- Common Controls v6: themed controls, tooltips. -->
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+    </dependentAssembly>
+  </dependency>
+  <!-- D-014: the app never asks for administrator rights; the helper does, per task. -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and Windows 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+  <asmv3:application>
+    <asmv3:windowsSettings xmlns:ws2005="http://schemas.microsoft.com/SMI/2005/WindowsSettings" xmlns:ws2016="http://schemas.microsoft.com/SMI/2016/WindowsSettings" xmlns:ws2019="http://schemas.microsoft.com/SMI/2019/WindowsSettings" xmlns:ws2020="http://schemas.microsoft.com/SMI/2020/WindowsSettings">
+      <ws2005:dpiAware>true/pm</ws2005:dpiAware>
+      <ws2016:dpiAwareness>PerMonitorV2</ws2016:dpiAwareness>
+      <ws2016:longPathAware>true</ws2016:longPathAware>
+      <ws2020:heapType>SegmentHeap</ws2020:heapType>
+    </asmv3:windowsSettings>
+  </asmv3:application>
+</assembly>

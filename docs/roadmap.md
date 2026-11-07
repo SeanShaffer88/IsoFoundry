@@ -2,7 +2,7 @@
 
 Nothing below is implemented yet.
 
-**Status: parked (2026-10-30) until Win10Pilot is complete.** Progress: 0% (planning complete, no code). ETA: not estimable until M0 sets a velocity baseline.
+**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 about 70% (shell, CLI, helper and CI done; installer, MSI and PortableApps packaging left). ETA: not estimable until M0 sets a velocity baseline.
 
 All milestones ship as public **0.x pre-releases**. **1.0** = every 1.0 row done, tested, documented.
 Evidence label per feature: **Verified** (tested on real target), **Partially verified** (fake drive / VHDX / VM only), **Unverified**.
@@ -13,7 +13,7 @@ Task grid modeled on AnyBurn Pro, with features drawn from Nero, Ashampoo Burnin
 
 | Milestone | Release | Scope | Testable without hardware |
 |---|---|---|---|
-| M0 Shell | 0.1 | Workspace, CI (x64 + ARM64 MSVC), local GNU build check, theme from tokens, main task grid, menus, settings, log view, Fluent strings, elevated helper + IPC skeleton, drive report export stub, installer/portable/PAF packaging | Yes |
+| M0 Shell | 0.1 | Workspace, CI (x64 + ARM64 MSVC, static CRT), local GNU build check, Win32 shell themed from tokens, main task grid, menus, settings, log view, Fluent strings, elevated helper + IPC skeleton, drive report export stub, installer/portable/PAF packaging | Yes |
 | M1 Image tools | 0.2 | Create image from files/folders (ISO/Joliet/UDF/hybrid, El Torito), browse/extract, edit image (ISO9660/Joliet/UDF), convert image format, checksums + `.dat` hash files, verify against known-good hash lists, compare, mount (built-in + temp ISO), CHD writer | Yes |
 | M2 USB | 0.3 | `usbwriter` crate (new; shared with WinISOPilot later), bootable USB (ISO → USB, GPT/MBR, UEFI/BIOS), Windows installer layouts, Install Windows to USB, USB → image, image → USB | VHDX + QEMU → Partially verified |
 | M3 Audio convert | 0.4 | Decode/encode pipeline, tags, batch convert, ReplayGain | Yes |
