@@ -7,7 +7,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ### Added
 - Image reading (`if-image`): ISO 9660 with Rock Ridge names, Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalog (BIOS and UEFI entries). Extraction keeps nothing half-written on cancel and renames names Windows cannot store.
 - Hashing (`if-hash`): CRC32, MD5, SHA-1 and SHA-256 in one pass; Logiqx/redump `.dat` writing and reading.
-- Commands: `image-info`, `extract`, `checksum` (with `--dat`), `compare`, `verify --dat`.
+- ISO creation (`if-image::write`, `create-image`): ISO 9660 + Joliet + UDF 1.02 bridge sharing one copy of the data, files over 4 GB (multi-extent / split UDF extents), El Torito BIOS (optional boot information table) and UEFI boot entries; written to a `.part` file and renamed when complete.
+- Commands: `image-info`, `extract`, `create-image`, `checksum` (with `--dat`), `compare`, `verify --dat`.
 
 ## [0.1.0] - 2026-11-07
 

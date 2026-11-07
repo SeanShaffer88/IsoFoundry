@@ -11,7 +11,10 @@ use serde_json::json;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-pub const USAGE: &str = "  image-info IMAGE      File systems, label, size and boot entries of an image\n\
+pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf]\n\
+       [--boot-bios IMG [--boot-load-sectors N] [--boot-info-table]] [--boot-efi IMG]\n\
+                       Build an ISO from files and folders (one folder = its contents)\n\
+  image-info IMAGE      File systems, label, size and boot entries of an image\n\
   extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660]\n\
                        Copy files out of an image (all, or the file/folder P)\n\
   checksum FILE [--algo crc32,md5,sha1,sha256] [--dat OUT.dat]\n\
@@ -77,6 +80,7 @@ fn fs_kind(s: &str) -> Result<FsKind, String> {
 pub(crate) fn run(cmd: &str, tail: &[String], g: &Global, o: &mut Out<'_>, log: &if_core::log::Logger) -> i32 {
     let r = match cmd {
         "image-info" => info(tail, o),
+        "create-image" => create(tail, g, o),
         "extract" => extract(tail, g, o),
         "checksum" => checksum(tail, g, o),
         "compare" => compare(tail, o),
@@ -104,6 +108,110 @@ fn one_path(a: &Args, what: &str) -> Result<PathBuf, (Exit, String)> {
         [] => Err(usage_err(format!("missing {what}"))),
         [_, x, ..] => Err(usage_err(format!("unexpected argument: {x}"))),
     }
+}
+
+/// The root for `create-image`: one folder means its contents; several
+/// sources (files or folders) are placed side by side.
+pub fn source_tree(sources: &[PathBuf]) -> Result<if_image::write::Node, (Exit, String)> {
+    use if_image::write::{Kind, Node};
+    let node = |p: &PathBuf| Node::from_path(p).map_err(|e| (Exit::Io, format!("{}: {e}", p.display())));
+    match sources {
+        [] => Err(usage_err("no source files or folders")),
+        [one] if one.is_dir() => {
+            let mut n = node(one)?;
+            n.name.clear();
+            Ok(n)
+        }
+        many => {
+            let mut kids = Vec::new();
+            for p in many {
+                kids.push(node(p)?);
+            }
+            let mut names: Vec<String> = kids.iter().map(|k| k.name.to_lowercase()).collect();
+            names.sort();
+            if names.windows(2).any(|w| w[0] == w[1]) {
+                return Err(usage_err("two sources have the same name"));
+            }
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            Ok(Node { name: String::new(), mtime: now, kind: Kind::Dir(kids) })
+        }
+    }
+}
+
+fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
+    use if_image::write::{build, BootImage, Options};
+    let a = parse(tail, &["out", "label", "fs", "boot-bios", "boot-efi", "boot-load-sectors"]).map_err(usage_err)?;
+    let mut info_table = false;
+    let pos: Vec<PathBuf> = a
+        .pos
+        .iter()
+        .filter(|p| {
+            if *p == "--boot-info-table" {
+                info_table = true;
+                false
+            } else {
+                true
+            }
+        })
+        .map(PathBuf::from)
+        .collect();
+    let dest = PathBuf::from(a.get("out").ok_or_else(|| usage_err("missing --out FILE.iso"))?);
+    let mut opts = Options::default();
+    if let Some(fs) = a.get("fs") {
+        let set: Vec<String> = fs.split(',').map(|x| x.trim().to_ascii_lowercase()).collect();
+        for x in &set {
+            if !["iso9660", "joliet", "udf"].contains(&x.as_str()) {
+                return Err(usage_err(format!("unknown file system {x}")));
+            }
+        }
+        opts.joliet = set.iter().any(|x| x == "joliet");
+        opts.udf = set.iter().any(|x| x == "udf");
+    }
+    opts.label = a.get("label").map(str::to_string).unwrap_or_else(|| {
+        match pos.as_slice() {
+            [one] => one.file_name().map(|n| n.to_string_lossy().into_owned()),
+            _ => None,
+        }
+        .unwrap_or_else(|| "CDROM".into())
+    });
+    let boot = |p: &str| BootImage::from_path(std::path::Path::new(p)).map_err(image_err);
+    if let Some(b) = a.get("boot-bios") {
+        let mut img = boot(b)?;
+        img.info_table = info_table;
+        img.load_sectors = a
+            .get("boot-load-sectors")
+            .map(|n| n.parse::<u16>().map_err(|_| usage_err("--boot-load-sectors must be 1-65535")))
+            .transpose()?;
+        opts.bios = Some(img);
+    }
+    if let Some(e) = a.get("boot-efi") {
+        opts.efi = Some(boot(e)?);
+    }
+    let root = source_tree(&pos)?;
+    if g.dry_run {
+        o.ok_text(&format!("would build {} from {} source(s)", dest.display(), pos.len()));
+        return Ok(());
+    }
+    let s = build(&root, opts, &dest, |_, _| true).map_err(image_err)?;
+    if o.json {
+        o.ok_text(
+            &json!({ "ok": true, "path": dest.display().to_string(), "bytes": s.sectors * 2048,
+                     "files": s.files, "folders": s.dirs })
+            .to_string(),
+        );
+    } else {
+        o.ok_text(&format!(
+            "Built {} ({} bytes, {} files, {} folders)",
+            dest.display(),
+            s.sectors * 2048,
+            s.files,
+            s.dirs
+        ));
+    }
+    Ok(())
 }
 
 fn info(tail: &[String], o: &mut Out<'_>) -> R {
