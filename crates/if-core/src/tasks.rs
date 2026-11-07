@@ -67,7 +67,7 @@ pub struct Task {
 }
 
 /// Tasks whose core works in this build (GUI dialog and/or CLI).
-pub const AVAILABLE: &[&str] = &["browse-image", "checksum", "convert-image", "create-image"];
+pub const AVAILABLE: &[&str] = &["browse-image", "checksum", "convert-image", "create-image", "edit-image"];
 
 impl Task {
     pub fn status(&self) -> Status {

@@ -11,6 +11,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Commands: `image-info`, `extract`, `create-image`, `checksum` (with `--dat`), `compare`, `verify --dat`, `convert-image`.
 - CD image formats: BIN/CUE (single and multi-file, MODE1/MODE2/AUDIO), CloneCD CCD/IMG/SUB, sheetless raw `.bin`/`.img`; Nero NRG and Alcohol MDS/MDF read only and marked unverified. Raw sector ECC/EDC generation and checks, Q-subchannel generation.
 - MAME CHD v5 (D-039): CD (`cdzl`) and DVD (`zlib`) writing with duplicate-hunk sharing and the compressed hunk map; reading `zlib`/`cdzl` CHDs from chdman. Output matches chdman 0.264's SHA-1s byte for byte on the test images.
+- Image editing (`edit-image`): add, remove, rename, new folders and label, saved as a new image; untouched files are copied straight from the source (ISO, BIN/CUE, CCD, CHD…), BIOS and UEFI boot entries kept.
+- Mounting (`mount`, `unmount`) with Windows' built-in virtual disk support, read only; other formats go through a temporary ISO in the data folder, removed on unmount.
 - Image conversion (`convert-image`): any readable image to ISO, BIN/CUE, CloneCD or CHD (CD or DVD layout). `image-info` now shows the container format and tracks.
 
 ## [0.1.0] - 2026-11-07

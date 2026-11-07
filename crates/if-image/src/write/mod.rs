@@ -25,6 +25,54 @@ const S: u64 = SECTOR as u64;
 pub enum Source {
     File(PathBuf),
     Bytes(Vec<u8>),
+    /// A file inside another image (image editing).
+    Image(ImageData),
+}
+
+/// Shared handle on an opened image, for files copied out of it.
+pub type SharedSource = std::rc::Rc<std::cell::RefCell<Box<dyn crate::source::SectorSource>>>;
+
+#[derive(Clone)]
+pub struct ImageData {
+    pub src: SharedSource,
+    pub data: crate::fs::Data,
+}
+
+impl std::fmt::Debug for ImageData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ImageData({:?})", self.data)
+    }
+}
+
+impl PartialEq for ImageData {
+    fn eq(&self, o: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.src, &o.src) && self.data == o.data
+    }
+}
+
+impl Eq for ImageData {}
+
+struct ImageReader {
+    d: ImageData,
+    size: u64,
+    pos: u64,
+}
+
+impl Read for ImageReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = crate::fs::read_data(self.d.src.borrow_mut().as_mut(), &self.d.data, self.size, self.pos, buf)
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        self.pos += n as u64;
+        Ok(n)
+    }
+}
+
+fn reader(src: &Source, size: u64) -> Result<Box<dyn Read>> {
+    Ok(match src {
+        Source::File(p) => Box::new(File::open(p).map_err(|e| Error::Format(format!("{}: {e}", p.display())))?),
+        Source::Bytes(b) => Box::new(std::io::Cursor::new(b.clone())),
+        Source::Image(d) => Box::new(ImageReader { d: d.clone(), size, pos: 0 }),
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -897,10 +945,7 @@ impl<W: Write> Out<W> {
 
 fn copy_source(out: &mut Out<impl Write>, lba: u64, src: &Source, size: u64, patch: Option<[u8; 56]>) -> Result<()> {
     out.zero(lba)?;
-    let mut r: Box<dyn Read> = match src {
-        Source::File(p) => Box::new(File::open(p).map_err(|e| Error::Format(format!("{}: {e}", p.display())))?),
-        Source::Bytes(b) => Box::new(std::io::Cursor::new(b.clone())),
-    };
+    let mut r = reader(src, size)?;
     let mut buf = vec![0u8; 1 << 20];
     let mut done = 0u64;
     let mut first = true;
@@ -917,7 +962,7 @@ fn copy_source(out: &mut Out<impl Write>, lba: u64, src: &Source, size: u64, pat
         if n < want {
             let what = match src {
                 Source::File(p) => p.display().to_string(),
-                Source::Bytes(_) => "data".into(),
+                Source::Bytes(_) | Source::Image(_) => "data".into(),
             };
             return bad(format!("{what} got shorter while the image was being built"));
         }
@@ -944,15 +989,11 @@ fn copy_source(out: &mut Out<impl Write>, lba: u64, src: &Source, size: u64, pat
 /// Boot information table (as mkisofs -boot-info-table): PVD lba, file lba,
 /// file length, 32-bit sum of the file from byte 64.
 fn info_table(src: &Source, size: u64, lba: u64) -> Result<[u8; 56]> {
-    let data = match src {
-        Source::Bytes(b) => b.clone(),
-        Source::File(p) => {
-            if size > 64 << 20 {
-                return bad("boot image too large for a boot information table");
-            }
-            std::fs::read(p)?
-        }
-    };
+    if size > 64 << 20 {
+        return bad("boot image too large for a boot information table");
+    }
+    let mut data = Vec::with_capacity(size as usize);
+    reader(src, size)?.take(size).read_to_end(&mut data)?;
     let sum = data.get(64..).unwrap_or(&[]).chunks(4).fold(0u32, |s, c| {
         let mut w = [0u8; 4];
         w[..c.len()].copy_from_slice(c);
