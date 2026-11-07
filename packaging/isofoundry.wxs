@@ -36,10 +36,15 @@
         <Component Id="HelperExe" Guid="*">
           <File Id="IsoFoundryHelperExe" Source="$(var.SourceDir)\isofoundry-helper.exe" KeyPath="yes" />
         </Component>
-        <Component Id="Docs" Guid="*">
+        <!-- One file per component so WiX can generate stable GUIDs. -->
+        <Component Id="License" Guid="*">
           <File Id="License" Source="$(var.SourceDir)\LICENSE" KeyPath="yes" />
-          <File Id="Readme" Source="$(var.SourceDir)\README.md" />
-          <File Id="Changelog" Source="$(var.SourceDir)\CHANGELOG.md" />
+        </Component>
+        <Component Id="Readme" Guid="*">
+          <File Id="Readme" Source="$(var.SourceDir)\README.md" KeyPath="yes" />
+        </Component>
+        <Component Id="Changelog" Guid="*">
+          <File Id="Changelog" Source="$(var.SourceDir)\CHANGELOG.md" KeyPath="yes" />
         </Component>
         <Component Id="SystemPath" Guid="3E8F1C27-6A49-4D0B-B5E3-0F27A9C4D861">
           <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Action="set" Part="last" System="yes" Permanent="no" />
@@ -59,7 +64,9 @@
       <ComponentRef Id="MainExe" />
       <ComponentRef Id="ConsoleTwin" />
       <ComponentRef Id="HelperExe" />
-      <ComponentRef Id="Docs" />
+      <ComponentRef Id="License" />
+      <ComponentRef Id="Readme" />
+      <ComponentRef Id="Changelog" />
       <ComponentRef Id="SystemPath" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
