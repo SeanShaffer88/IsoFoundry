@@ -66,10 +66,20 @@ pub struct Task {
     pub variants: &'static [Variant],
 }
 
+/// Tasks whose core works in this build (GUI dialog and/or CLI).
+pub const AVAILABLE: &[&str] = &["browse-image", "checksum"];
+
 impl Task {
     pub fn status(&self) -> Status {
-        // No task has shipped yet; flip to `Available` as milestones land.
-        Status::Planned(self.milestone)
+        if AVAILABLE.contains(&self.id) {
+            Status::Available
+        } else {
+            Status::Planned(self.milestone)
+        }
+    }
+
+    pub fn is_available(&self) -> bool {
+        self.status() == Status::Available
     }
 }
 

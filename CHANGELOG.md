@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Image reading (`if-image`): ISO 9660 with Rock Ridge names, Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalog (BIOS and UEFI entries). Extraction keeps nothing half-written on cancel and renames names Windows cannot store.
+- Hashing (`if-hash`): CRC32, MD5, SHA-1 and SHA-256 in one pass; Logiqx/redump `.dat` writing and reading.
+- Commands: `image-info`, `extract`, `checksum` (with `--dat`), `compare`, `verify --dat`.
+
 ## [0.1.0] - 2026-11-07
 
 M0 shell: the window, command line and elevated helper. No disc, image, audio or USB task runs yet; each one says which version brings it.
