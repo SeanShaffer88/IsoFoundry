@@ -2,7 +2,9 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] - 2026-11-07
+
+M0 shell: the window, command line and elevated helper. No disc, image, audio or USB task runs yet; each one says which version brings it.
 
 ### Added
 - M0 shell: Win32 main window with the 21-task grid (owner-drawn, split-button menus, shield marks on administrator tasks), tooltips on every control, keyboard navigation (Tab, arrow keys, Enter, Alt+Down), visible focus ring, high-contrast palette, Per-Monitor DPI v2, dark title bar, saved and validated window placement, single instance.
@@ -10,7 +12,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Command line, also as the console twin `isofoundry.com` so shells wait for it and capture output: `--version`, `list`, `helper-check [--elevated]`, `report --out FILE`, `clean`; every task name answers `not_implemented` (exit 40) until its milestone ships; `--json`, `--dry-run`, `--verbose/--debug`.
 - Elevated helper (`isofoundry-helper.exe`) with a named-pipe handshake: user/Administrators/SYSTEM-only pipe, client process id check, per-session nonce, typed messages only.
 - Settings (versioned TOML, atomic writes, quarantine of unreadable files), local logs, portable mode (`IsoFoundry.portable` → `data\` beside the exe).
-- CI: Windows MSVC x64 (fmt, clippy, tests, CLI smoke test, static-CRT check) and ARM64 build; portable zips with SHA256SUMS.txt as build artifacts.
+- Release assets: `IsoFoundry-v0.1.0-x64-Setup.exe` (Inno Setup, per-user or all users, optional PATH), `-x64-Setup.msi` (WiX), x64 and ARM64 portable zips, x64 and ARM64 PortableApps.com Format zips (`IsoFoundryPortable.exe` launcher), `SHA256SUMS.txt`.
+- CI: Windows MSVC x64 (fmt, clippy, tests, CLI smoke test, static-CRT check) and ARM64 build; every release asset is built, and both installers are installed, run and uninstalled.
 
 ### Changed
 - Compressed image format decided: CHD (D-039).

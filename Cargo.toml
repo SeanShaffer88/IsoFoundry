@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/if-core", "crates/isofoundry", "crates/isofoundry-helper"]
 
 [workspace.package]
-version = "0.1.0-dev"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["Sean Shaffer"]

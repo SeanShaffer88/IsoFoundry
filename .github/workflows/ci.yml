@@ -2,7 +2,8 @@ name: CI
 
 # Builds, lints and tests on Windows with MSVC and a static CRT (D-030,
 # D-043). x64 runs the tests; ARM64 is cross-built (no ARM64 runner tests).
-# Each build uploads a portable zip with SHA256SUMS.txt for manual testing.
+# Each build packages the release assets (packaging/package.ps1), installs and
+# uninstalls the x64 Setup.exe and MSI, and uploads everything for testing.
 
 on:
   push:
@@ -67,29 +68,50 @@ jobs:
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
           if (-not $dumpbin) { throw "dumpbin.exe not found" }
-          foreach ($f in 'isofoundry.exe', 'isofoundry-cli.exe', 'isofoundry-helper.exe') {
+          foreach ($f in 'isofoundry.exe', 'isofoundry-cli.exe', 'isofoundry-helper.exe', 'isofoundry-portable.exe') {
             $deps = & $dumpbin /dependents "target/${{ matrix.target }}/release/$f" | Out-String
             if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { throw "$f links the dynamic CRT:`n$deps" }
           }
-      - name: Package portable zip
+      - name: Install packaging tools
+        if: matrix.arch == 'x64'
         shell: pwsh
         run: |
-          $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          $name = "IsoFoundry-v$ver-${{ matrix.arch }}-Portable"
-          $dir = "dist/$name"
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          $rel = "target/${{ matrix.target }}/release"
-          Copy-Item "$rel/isofoundry.exe", "$rel/isofoundry-helper.exe", LICENSE, README.md, CHANGELOG.md $dir
-          Copy-Item "$rel/isofoundry-cli.exe" "$dir/isofoundry.com"
-          New-Item -ItemType File "$dir/IsoFoundry.portable" | Out-Null
-          Compress-Archive -Path "$dir/*" -DestinationPath "dist/$name.zip"
-          $h = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
-          "$h  $name.zip" | Out-File -Encoding ascii dist/SHA256SUMS.txt
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          dotnet tool install --global wix --version 5.0.2
+      - name: Package
+        shell: pwsh
+        run: |
+          $extra = @{}
+          if ('${{ matrix.arch }}' -eq 'x64') { $extra.Installers = $true }
+          pwsh -NoProfile -File packaging/package.ps1 -Target ${{ matrix.target }} -Arch ${{ matrix.arch }} -OutDir dist @extra
+          if ($LASTEXITCODE -ne 0) { throw "packaging failed" }
+      - name: Install and uninstall test
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/*-Setup.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/TASKS=addtopath', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Setup.exe exit $($p.ExitCode)" }
+          $dir = "$env:LOCALAPPDATA\Programs\IsoFoundry"
+          $v = & "$dir\isofoundry.com" --version
+          if ($v -notmatch '^IsoFoundry ') { throw "installed per-user build did not run: $v" }
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0 -or (Test-Path "$dir\isofoundry.exe")) { throw "uninstall failed" }
+          $msi = Get-ChildItem dist/*-Setup.msi | Select-Object -First 1
+          $m = Start-Process msiexec.exe -ArgumentList '/i', "`"$($msi.FullName)`"", '/qn', '/norestart' -Wait -PassThru
+          if ($m.ExitCode -ne 0) { throw "MSI install exit $($m.ExitCode)" }
+          $v = & "$env:ProgramFiles\IsoFoundry\isofoundry.com" --version
+          if ($v -notmatch '^IsoFoundry ') { throw "MSI build did not run: $v" }
+          $m = Start-Process msiexec.exe -ArgumentList '/x', "`"$($msi.FullName)`"", '/qn', '/norestart' -Wait -PassThru
+          if ($m.ExitCode -ne 0 -or (Test-Path "$env:ProgramFiles\IsoFoundry\isofoundry.exe")) { throw "MSI uninstall failed" }
+          Write-Host "Setup.exe and MSI install, run and uninstall OK"
       - name: Upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: IsoFoundry-${{ matrix.arch }}-portable
+          name: IsoFoundry-${{ matrix.arch }}
           path: |
             dist/*.zip
+            dist/*.exe
+            dist/*.msi
             dist/SHA256SUMS.txt
           retention-days: 14

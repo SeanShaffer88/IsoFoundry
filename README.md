@@ -4,7 +4,7 @@
 
 **Open Source Disc Burning, Imaging & Bootable USB Suite** for Windows 10 22H2 / 11 (x64 and ARM64), in the spirit of AnyBurn Pro: dark UI with a red accent and a grid of tasks.
 
-> Status: **in development (M0 shell)**. No application release yet (0.0.x = planning docs). See [ROADMAP](docs/roadmap.md).
+> Status: **0.1.0 (M0 shell)**: window, command line and elevated helper. Tasks arrive from 0.2 onward. See [ROADMAP](docs/roadmap.md).
 
 ## What it does (planned for 1.0)
 
@@ -55,6 +55,15 @@ Will be captured from real runs at 0.1. Capture list: main window (100% and 150%
 
 ## Hardware compatibility
 Disc features are developed against a simulated drive. Real-drive results come from users: Help → **Export drive report**, then open a "Drive report" issue. See [COMPATIBILITY](docs/COMPATIBILITY.md).
+
+## Install
+Download from [Releases](https://github.com/SeanShaffer88/IsoFoundry/releases):
+- `IsoFoundry-v<version>-x64-Setup.exe`: installs for you only (no administrator rights) or for all users
+- `IsoFoundry-v<version>-x64-Setup.msi`: all users, for managed deployment
+- `IsoFoundry-v<version>-<x64|arm64>-Portable.zip`: unzip and run; settings stay in `data\` beside the program
+- `IsoFoundry-v<version>-<x64|arm64>-PortableApps.zip`: PortableApps.com Format
+
+Check downloads against `SHA256SUMS.txt`. Builds are not code-signed yet.
 
 ## Build
 ```powershell
