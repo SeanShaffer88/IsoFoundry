@@ -62,10 +62,12 @@ Commands:\n\
                        (--dry-run lists them; --yes deletes)\n\
   help, --help         Show this text\n\
   version, --version   Show the version\n\n\
-Task commands (not available yet; exit code 40 until their version ships):\n",
-        if_core::APP_VERSION
+Image commands:\n{}\n\
+Task commands not available yet (exit code 40 until their version ships):\n",
+        if_core::APP_VERSION,
+        crate::cli_image::USAGE
     );
-    for t in tasks::all() {
+    for t in tasks::all().filter(|t| !t.is_available()) {
         s.push_str(&format!(
             "  {:<20} {} [{} / {}]\n",
             t.cli,
@@ -134,18 +136,18 @@ fn list_json() -> serde_json::Value {
     json!({ "version": if_core::APP_VERSION, "tasks": tasks })
 }
 
-struct Out<'a> {
-    out: &'a mut dyn Write,
-    err: &'a mut dyn Write,
-    json: bool,
+pub(crate) struct Out<'a> {
+    pub(crate) out: &'a mut dyn Write,
+    pub(crate) err: &'a mut dyn Write,
+    pub(crate) json: bool,
 }
 
 impl Out<'_> {
-    fn ok_text(&mut self, text: &str) {
+    pub(crate) fn ok_text(&mut self, text: &str) {
         let _ = writeln!(self.out, "{text}");
     }
 
-    fn fail(&mut self, exit: Exit, message: &str) -> i32 {
+    pub(crate) fn fail(&mut self, exit: Exit, message: &str) -> i32 {
         if self.json {
             let _ = writeln!(
                 self.out,
@@ -277,6 +279,9 @@ pub fn run(
                 return o.fail(Exit::Usage, &format!("unexpected argument: {extra}"));
             }
             clean(dirs, &g, &mut o)
+        }
+        "extract" | "checksum" | "compare" | "image-info" | "verify" => {
+            crate::cli_image::run(cmd, tail, &g, &mut o, log)
         }
         other => match tasks::by_cli(other) {
             Some(t) => {

@@ -27,6 +27,7 @@ Final list and versions are pinned in `Cargo.lock`; licenses checked with `cargo
 | Component | Use | License | Linking |
 |---|---|---|---|
 | windows-sys / windows-rs | Win32 UI + system APIs / COM (IMAPI2) | MIT / Apache-2.0 | static |
+| crc32fast, md-5, sha1, sha2 (RustCrypto) | hashing | MIT / Apache-2.0 | static |
 | serde, serde_json, toml | settings, IPC, reports | MIT / Apache-2.0 | static |
 | getrandom | IPC session nonce | MIT / Apache-2.0 | static |
 | Symphonia | audio decoding | MPL-2.0 | static (file-level copyleft; unmodified) |

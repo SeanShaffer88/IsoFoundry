@@ -3,6 +3,7 @@
 //! `isofoundry.com` (console twin for scripts, D-048).
 
 pub mod cli;
+pub mod cli_image;
 pub mod layout;
 pub mod theme;
 #[cfg(windows)]

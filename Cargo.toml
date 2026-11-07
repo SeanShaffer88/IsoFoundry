@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/if-core", "crates/isofoundry", "crates/isofoundry-helper"]
+members = ["crates/if-core", "crates/if-hash", "crates/if-image", "crates/isofoundry", "crates/isofoundry-helper"]
 
 [workspace.package]
 version = "0.1.0"

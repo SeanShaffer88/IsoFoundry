@@ -17,6 +17,10 @@ Kept current every release. Items move out only with evidence.
 - Windows image customization arrives in 2.0. Offline servicing with the inbox DISM API is blocked when the host DISM is older than the image build unless a matching Windows ADK DISM is installed.
 - Windows ISO download relies on Microsoft's site and the Fido script; Microsoft can block link generation.
 
+## Images
+- UDF virtual partitions (VAT, used by packet-written CD-R/BD-R) cannot be read.
+- UDF metadata partitions (Blu-ray) are implemented but not yet tested against a real disc image.
+
 ## M0 shell
 - No task runs yet: every task button and CLI subcommand reports the milestone it ships in.
 - Verified only under Wine and in CI so far, not on a real Windows desktop (D-047).

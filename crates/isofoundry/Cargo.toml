@@ -26,6 +26,8 @@ path = "src/bin/isofoundry-portable.rs"
 
 [dependencies]
 if-core = { path = "../if-core" }
+if-hash = { path = "../if-hash" }
+if-image = { path = "../if-image" }
 serde_json.workspace = true
 
 [target.'cfg(windows)'.dependencies.windows-sys]
