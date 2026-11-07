@@ -11,6 +11,7 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | PortableApps.com launcher | Partially verified | Wine 2026-11-07: starts the app, data lands in `Data\settings` |
 | Setup.exe and MSI install/run/uninstall | Partially verified | Silent per-user Setup.exe and per-machine MSI install, `--version`, uninstall pass on GitHub windows-latest, 2026-11-07; interactive wizard and UAC paths untested |
 | Image reading (ISO 9660/RR/Joliet/UDF/El Torito), extract, hashing, .dat | Partially verified | Tests against genisoimage 1.1.11 images (tests/fixtures), 2026-11-07. UDF metadata partition (Blu-ray) untested: no fixture; VAT (BD-R/CD-R packet writing) not supported |
+| ISO writer (ISO 9660/Joliet/UDF 1.02, El Torito) | Partially verified | Round-trip tests; images checked with isoinfo (cdrkit 1.1.11), udfinfo (udftools 2.3: integrity closed, both anchors), xorriso (El Torito BIOS+UEFI, media check good) and 7-Zip (UDF extraction identical to source), 2026-11-07. Not yet booted in a VM or mounted on Windows; >4 GB files tested only by code review |
 | Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
 
 ## 2026-11-07 — M0 shell

@@ -280,7 +280,7 @@ pub fn run(
             }
             clean(dirs, &g, &mut o)
         }
-        "extract" | "checksum" | "compare" | "image-info" | "verify" => {
+        "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" => {
             crate::cli_image::run(cmd, tail, &g, &mut o, log)
         }
         other => match tasks::by_cli(other) {

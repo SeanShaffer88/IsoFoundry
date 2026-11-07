@@ -2,7 +2,7 @@
 
 Nothing below is implemented yet.
 
-**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 in progress (about 20%: reading, extraction, hashing done; writer, formats, editing, mounting and task windows left). ETA: not estimable until M0 sets a velocity baseline.
+**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 in progress (about 40%: reading, extraction, hashing and ISO creation done; formats, editing, mounting and task windows left). ETA: not estimable until M0 sets a velocity baseline.
 
 All milestones ship as public **0.x pre-releases**. **1.0** = every 1.0 row done, tested, documented.
 Evidence label per feature: **Verified** (tested on real target), **Partially verified** (fake drive / VHDX / VM only), **Unverified**.

@@ -15,6 +15,7 @@ pub mod fs;
 pub mod iso9660;
 pub mod source;
 pub mod udf;
+pub mod write;
 
 pub const SECTOR: usize = 2048;
 
