@@ -59,7 +59,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $v -notmatch '^IsoFoundry ') { throw "version failed: $v" }
           & $exe helper-check --json
           if ($LASTEXITCODE -ne 0) { throw "helper-check failed" }
-          & $exe burn-image --json
+          & $exe burn-audio --json
           if ($LASTEXITCODE -ne 40) { throw "expected exit 40 (not_implemented), got $LASTEXITCODE" }
           # Mount: an ISO directly and a CHD through a temporary ISO (D-005).
           $fx = "crates/if-image/tests/fixtures"
