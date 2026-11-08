@@ -153,6 +153,32 @@ fn hinstance() -> HINSTANCE {
     unsafe { GetModuleHandleW(std::ptr::null()) }
 }
 
+/// Accessors for the task windows (see `super::taskwin`): the module handle,
+/// the main window's DPI and fonts, the current palette and the app log.
+/// Fonts and the palette are read as raw values; the `Fonts` themselves stay
+/// owned by `App`.
+pub(crate) fn instance() -> HINSTANCE {
+    hinstance()
+}
+
+pub(crate) fn ui_metrics() -> (u32, HFONT, HFONT) {
+    with_app(|a| (a.dpi, a.fonts.label, a.fonts.mono)).unwrap_or((96, std::ptr::null_mut(), std::ptr::null_mut()))
+}
+
+pub(crate) fn palette() -> Palette {
+    with_app(|a| a.palette).unwrap_or(Palette::DARK)
+}
+
+pub(crate) fn note_log(line: &str, error: bool) {
+    with_app(|a| {
+        if error {
+            a.log.error(line.to_string());
+        } else {
+            a.log.info(line.to_string());
+        }
+    });
+}
+
 fn loword(v: usize) -> u16 {
     (v & 0xFFFF) as u16
 }
@@ -857,6 +883,7 @@ unsafe extern "system" fn button_subclass(
 enum Action {
     None,
     NotYet(String, &'static str, &'static str),
+    OpenTask(&'static str),
     VariantMenu(usize),
     Exit,
     OpenData,
@@ -913,7 +940,11 @@ fn on_command(hwnd: HWND, id: u16) {
         {
             let i = if x >= ID_MENU_TASK { x - ID_MENU_TASK } else { x - ID_MAIN } as usize;
             let t = tasks[i];
-            Action::NotYet(strings::task_title(t.id).to_string(), t.milestone.label(), t.milestone.release())
+            if t.is_available() {
+                Action::OpenTask(t.id)
+            } else {
+                Action::NotYet(strings::task_title(t.id).to_string(), t.milestone.label(), t.milestone.release())
+            }
         }
         x if (ID_ARROW..ID_ARROW + tasks.len() as u16).contains(&x) => Action::VariantMenu((x - ID_ARROW) as usize),
         x if x >= ID_VARIANT => match variant_list().get((x - ID_VARIANT) as usize) {
@@ -939,6 +970,17 @@ fn run_action(hwnd: HWND, action: Action) {
         Action::NotYet(title, m, rel) => {
             with_app(|a| a.log.info(format!("task requested: {title} (ships in {m})")));
             message(hwnd, &strings::not_yet(&title, m, rel), MB_ICONINFORMATION);
+        }
+        Action::OpenTask(id) => {
+            with_app(|a| a.log.info(format!("task opened: {}", strings::task_title(id))));
+            match id {
+                "browse-image" => super::tasks::browse::open(hwnd),
+                "checksum" => super::tasks::checksum::open(hwnd),
+                "convert-image" => super::tasks::convert::open(hwnd),
+                "create-image" => super::tasks::create::open(hwnd),
+                "edit-image" => super::tasks::edit::open(hwnd),
+                _ => {}
+            }
         }
         Action::VariantMenu(i) => variant_menu(hwnd, i),
         Action::OpenData => {
