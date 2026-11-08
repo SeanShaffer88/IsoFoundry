@@ -9,6 +9,8 @@
 //!   isofoundry-helper --stdio --nonce <hex>          (tests only)
 
 mod serve;
+#[cfg(windows)]
+mod usbwin;
 
 use std::process::ExitCode;
 

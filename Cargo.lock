@@ -146,6 +146,7 @@ dependencies = [
  "if-hash",
  "if-image",
  "serde_json",
+ "usbwriter",
  "windows-sys",
  "winresource",
 ]
@@ -155,6 +156,8 @@ name = "isofoundry-helper"
 version = "0.2.0"
 dependencies = [
  "if-core",
+ "if-image",
+ "usbwriter",
  "windows-sys",
  "winresource",
 ]
@@ -405,6 +408,15 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "usbwriter"
+version = "0.2.0"
+dependencies = [
+ "if-core",
+ "if-hash",
+ "if-image",
+]
 
 [[package]]
 name = "version_check"

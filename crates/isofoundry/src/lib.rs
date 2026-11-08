@@ -5,6 +5,7 @@
 pub mod cli;
 pub mod cli_image;
 pub mod cli_mount;
+pub mod cli_usb;
 pub mod layout;
 pub mod theme;
 #[cfg(windows)]

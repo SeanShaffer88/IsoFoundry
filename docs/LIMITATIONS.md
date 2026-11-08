@@ -33,6 +33,13 @@ Kept current every release. Items move out only with evidence.
 - Installers and executables are not code-signed; Windows SmartScreen may warn on first run.
 - Releases ship x64 only, as one Setup.exe installer and one portable zip (the MSI, ARM64 and PortableApps.com assets were dropped after 0.1.0).
 
+## USB (M2)
+- Writing to a physical disk is **Unverified**: the engine is tested end-to-end against disk-image files (the VHDX test route), but the elevated helper's physical-disk path has not yet run on real hardware, and no written stick has been boot-tested yet.
+- The GPT+NTFS layout is formatted by Windows' own formatter through the helper; that call is **Unverified**.
+- Cancelling a job that runs in the helper takes effect when the helper session ends; the file-target route cancels straight away.
+- FAT32 layouts cannot hold an `install.wim`/`install.esd` over the 4 GB FAT32 file limit — the write is refused with a clear message; use the GPT+NTFS layout. Splitting an install image is not supported yet.
+- Files mode needs a readable ISO image; raw mode accepts any image file.
+
 ## Platform
 - Windows 10 22H2 and 11 only. ARM64 builds are produced but **Unverified** until run on ARM64 hardware.
 - LAME MP3 encoding requires `libmp3lame.dll` (not bundled-linked); ARM64 build availability unverified.

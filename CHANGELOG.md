@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Added
+- M2 USB: **Create bootable USB** and **Install Windows to USB** — a new `usbwriter` engine (MBR/GPT partitioning, FAT32 formatting, ISO file copy, raw image write with optional SHA-256 verify, USB → image), task windows with disk picking and a typed ERASE confirmation for targets with mounted volumes or over 64 GB, `usb list` / `usb write` / `usb read` and `windows-to-usb` commands, and helper protocol v2 for the elevated disk work. Windows installer layouts: MBR+FAT32, GPT+FAT32 and GPT+NTFS (for install images over the FAT32 file limit).
+
 ### Fixed
 - Task windows: checkboxes, radio buttons and the progress bar now follow the dark control theme — their labels rendered in a low-contrast gray on the dark background and the progress bar painted as a bright strip.
 

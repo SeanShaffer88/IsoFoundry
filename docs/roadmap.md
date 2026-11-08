@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 done on `main` (reading, extraction, hashing, ISO creation, CD formats, CHD, conversion, editing, mounting and the GUI task windows); ships as 0.2.0. Next: M2 USB.
+**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 done on `main` (reading, extraction, hashing, ISO creation, CD formats, CHD, conversion, editing, mounting and the GUI task windows); ships as 0.2.0. M2 USB built on `main` (usbwriter crate, both task windows, CLI, helper protocol v2); ships as 0.3.0 — physical-disk runs and QEMU boot checks still owed.
 
 All milestones ship as public **0.x pre-releases**. **1.0** = every 1.0 row done, tested, documented.
 Evidence label per feature: **Verified** (tested on real target), **Partially verified** (fake drive / VHDX / VM only), **Unverified**.
@@ -44,8 +44,8 @@ Not used, because they bypass console copy protection: PS3-Quick-Disc-Decryptor 
 
 ### USB
 
-- [ ] Bootable USB writer, `usbwriter` crate, later shared with WinISOPilot. (M2)
-- [ ] Windows installer layouts (from [windows2usb](https://github.com/ValdikSS/windows2usb), ideas only): MBR+FAT32 with split `install.wim` (default; BIOS, UEFI, Secure Boot), GPT+FAT32, GPT+NTFS; Microsoft's own boot files so Secure Boot stays intact; write-through I/O so progress is real. (M2)
+- [x] Bootable USB writer, `usbwriter` crate, later shared with WinISOPilot. (M2 — built; physical-disk verification owed)
+- [x] Windows installer layouts (from [windows2usb](https://github.com/ValdikSS/windows2usb), ideas only): MBR+FAT32 (default; BIOS, UEFI, Secure Boot), GPT+FAT32, GPT+NTFS; Microsoft's own boot files so Secure Boot stays intact. As built, FAT32 layouts refuse an `install.wim`/`.esd` over the 4 GB FAT32 limit with a clear message (splitting not implemented yet) — GPT+NTFS is the route for those images. (M2 — built; physical-disk verification owed)
 - [ ] **Multiboot USB** (ideas from [MultiOS-USB](https://github.com/Mexit/MultiOS-USB), GPL-3.0, and [GLIM](https://github.com/thias/glim), public-domain configs): install a boot menu once, then copy any number of ISO/WIM files onto the stick and pick one at boot. Linux ISOs boot by GRUB loopback; WinPE/Windows setup from WIM/ISO; BIOS and UEFI; Secure Boot handled without asking users to disable it where possible; per-ISO boot options survive updates. Out of scope until the single-ISO writer is verified. (1.x)
 - [ ] UI reference for a modern, simple writer: [Lufus](https://github.com/Hogjects/Lufus) (MIT, Linux).
 

@@ -28,6 +28,8 @@ pub fn serve<R: Read, W: Write>(r: &mut R, w: &mut W, nonce: &str, elevated: boo
                 write_frame(w, &Response::Bye).map_err(|e| e.to_string())?;
                 return Ok(());
             }
+            Request::UsbList => usb_list(),
+            Request::UsbJob(job) => usb_job(w, &job)?,
         };
         write_frame(w, &resp).map_err(|e| e.to_string())?;
     }
@@ -96,6 +98,47 @@ pub fn connect_pipe(name: &str, app_pid: u32) -> Result<std::fs::File, String> {
 #[cfg(not(windows))]
 pub fn connect_pipe(_name: &str, _app_pid: u32) -> Result<std::fs::File, String> {
     Err("named pipes are only used on Windows; use --stdio".into())
+}
+
+#[cfg(windows)]
+fn usb_list() -> Response {
+    let disks = crate::usbwin::enumerate().iter().map(crate::usbwin::to_dto).collect();
+    Response::UsbDisks { disks }
+}
+
+#[cfg(not(windows))]
+fn usb_list() -> Response {
+    Response::Error { code: 1, message: "USB jobs need Windows".into() }
+}
+
+/// Runs a USB job, streaming Progress frames (polled from the job's
+/// shared Progress every 200 ms) ahead of the final response.
+#[cfg(windows)]
+fn usb_job<W: Write>(w: &mut W, job: &if_core::ipc::UsbJob) -> Result<Response, String> {
+    use if_core::job::Progress;
+    let progress = Progress::default();
+    let p2 = progress.clone();
+    let job2 = job.clone();
+    let worker = std::thread::spawn(move || crate::usbwin::run_job(&job2, &p2));
+    let mut last = (0u64, 0u64);
+    while !worker.is_finished() {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let snap = progress.snapshot();
+        if snap != last {
+            last = snap;
+            let _ = write_frame(w, &Response::Progress { done: snap.0, total: snap.1 });
+        }
+    }
+    match worker.join() {
+        Ok(Ok((files, bytes, notes))) => Ok(Response::UsbDone { files, bytes, notes }),
+        Ok(Err(message)) => Ok(Response::Error { code: 1, message }),
+        Err(_) => Ok(Response::Error { code: 1, message: "the USB job crashed in the helper".into() }),
+    }
+}
+
+#[cfg(not(windows))]
+fn usb_job<W: Write>(_w: &mut W, _job: &if_core::ipc::UsbJob) -> Result<Response, String> {
+    Ok(Response::Error { code: 1, message: "USB jobs need Windows".into() })
 }
 
 #[cfg(test)]
