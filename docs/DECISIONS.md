@@ -79,3 +79,15 @@ Format: `D-NNN — decision — why — status`. Newest at the bottom. Changing 
   and cancellation. No central queue is built for 1.0.
 - USB → image stays command-line only for 1.0; its grid variant
   says so instead of showing a "planned" notice.
+
+## D-053 — 1.0 promotion (2026-11-08)
+
+- **1.0.0 is a promotion of 0.9.0, not a feature release.** Every
+  1.0 roadmap row (M0–M6 + RC) is built, gated and documented; the
+  1.0 version carries no feature changes over 0.9.0. The release
+  workflow already marks only `v0.*` as pre-release, so 1.0.0
+  publishes as the first full release with no workflow change.
+- The hardware paths stay labelled **Unverified** in the docs and
+  release notes: promotion asserts the feature set is complete
+  and gated (simulated drive + CI), not that real-hardware field
+  runs have happened.
