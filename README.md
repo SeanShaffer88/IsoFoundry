@@ -11,7 +11,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 ## Status
 
 - **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
-- **0.5.0 (in development)** — M4 disc burning through a new `if-drive` layer (IMAPI2 on Windows): burn image, burn files with multisession append, burn MP3 disc, burn DVD-video folder, erase rewritable media, and drive info — in task windows and from the command line, with simulate and verify-after-burn where the backend supports them. Every flow also runs against a built-in simulated drive (`--fake`), which is this milestone's test gate; no burn has run on real hardware yet, so the IMAPI2 path is **Unverified**.
+- **0.5.0 (in development)** — M4 disc burning plus M5 ripping and copying, through the `if-drive` layer (IMAPI2 burning, MMC/SPTI raw reading): burn image/files/MP3/video, erase, drive info with the disc's table of contents, disc → image with dump reports, disc → disc, secure audio ripping with AccurateRip checksums, audio CD burning, surface/quality scans and recovery from damaged discs — in task windows and from the command line. Every flow also runs against a built-in simulated drive (`--fake`), which is these milestones' test gate; no burn or rip has run on real hardware yet, so the hardware paths are **Unverified**.
 - **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB and Install Windows to USB (`usb`, `windows-to-usb`; tested end-to-end against disk-image files — writing to a physical disk and booting from it are still to be confirmed on real hardware), and batch audio conversion with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
@@ -54,6 +54,10 @@ Writing is guarded: the system disk, the boot/pagefile disk and fixed disks are 
 ## Burning (in development, 0.5.0)
 
 - **`burn-image`, `burn-files`, `burn-mp3`, `burn-video`, `erase`, `info`** — the burning tasks, in windows and on the command line, all through the `if-drive` layer (IMAPI2). Files burns can append a session to an appendable disc or close it; image burns can simulate (validation only — IMAPI2 has no test-write) and verify. Verify after burn performs a real digest comparison on the simulated drive; on the IMAPI path it is reported as unavailable until the M5 read-back work lands. `--fake` runs any of these against the simulated drive, no burner needed.
+
+## Ripping and copying (in development, 0.5.0)
+
+- **`copy-to-image`, `copy-disc`, `rip`, `burn-audio`, `surface-test`, `recover`** — the M5 tasks, in windows and on the command line. Ripping a disc writes the image plus a dump report and a `.dat` hash file (raw rips add a CUE sheet; subchannel capture is optional). Audio rips are secure by default — every sector is read twice and the reads must agree — and land as WAV, FLAC or MP3 with AccurateRip checksums in the rip log. The surface test reads every sector once and grades the disc; recovery rips tolerantly and extracts what the filesystem still gives up, naming the files the bad sectors damaged. On the command line `--fake` reads a simulated source disc; in the windows the test drive does the same job.
 
 ## Command line
 
@@ -188,8 +192,8 @@ All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task w
 | M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
 | M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
 | M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn, multi-drive, job queue | — built on main, ships as 0.5.0
-| M5 Disc & ripping (MMC) | 0.6.0 | Disc → image (raw + subchannel), disc → disc, secure audio ripping, audio CD burning, surface/quality scans, recovery |
-| M6 Integration | 0.7.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check |
+| M5 Disc & ripping (MMC) | 0.5.0 | Disc → image (raw + subchannel), disc → disc, secure audio ripping, audio CD burning, surface/quality scans, recovery — built on main, ships as 0.5.0 |
+| M6 Integration | 0.6.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check, MusicBrainz, completion actions |
 | RC / 1.0 | 0.9.0 / 1.0 | Audit pass, failure drills, accessibility pass, screenshots, release |
 | 1.x | — | Multiboot USB, FAT/VHD image editing, Xbox XISO, Spanish UI, native Windows 11 context menu |
 | 2.0 | — | Windows ISO customization integrated from [WinISOPilot](https://github.com/SeanShaffer88/WinISOPilot) |

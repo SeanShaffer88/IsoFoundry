@@ -47,6 +47,15 @@ Kept current every release. Items move out only with evidence.
 - "Simulate" on the IMAPI path runs every check (recorder, media, capacity) and writes nothing — IMAPI2's data format has no test-write mode.
 - An MP3 disc is a *data* disc with the audio files plus a generated `playlist.m3u` (what car and hardware players read). A true audio CD is the M5 `burn-audio` task.
 
+## Ripping and MMC (M5)
+- The MMC/SPTI backend is **Unverified**: no rip, scan or recovery has run against a real drive (development machines here have no optical drive). This milestone's test gate is the simulated drive, which implements loaded data/audio discs, a damage map, and DAO audio burns with CD-Text for real.
+- Copy disc runs through a temporary image file on this build; true on-the-fly streaming (sector pipe from reader to writer) is not wired up — the `--on-the-fly` flag is accepted and the CLI says so.
+- Disc → disc and copy-to-image read data discs at 2048-byte sectors; raw 2352-byte rips cover audio discs and drives whose table of contents reports 2352-byte sectors. Mixed-mode discs are refused with a pointer to the separate audio/data flows.
+- Audio CD burning on real drives goes through IMAPI2 track-at-once: fixed 2 s gaps and no CD-Text (the format cannot carry it). Disc-at-once with CD-Text and exact pregaps works on the simulated drive; an MMC DAO writer is future work.
+- AccurateRip checksums (v1 and v2) are computed locally and written to the rip log; the online database comparison is not wired up — IsoFoundry stays fully offline by default.
+- Secure ripping compares repeated reads of the same drive only; it does not use C2 error pointers or drive read offsets, so it is not a bit-perfect guarantee against a drive that reads the same wrong data twice.
+- Quality scan grades come from read success, retries and timing on any drive (no vendor C2 reporting yet).
+
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
 - MP3 encoding needs `libmp3lame.dll` next to the program or on the PATH (loaded at runtime, never bundled, D-012); without it, MP3 jobs fail with a clear message. The LAME path is **Unverified** on a real Windows machine.

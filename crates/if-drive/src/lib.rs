@@ -17,6 +17,9 @@
 pub mod fake;
 #[cfg(windows)]
 pub mod imapi;
+pub mod rip;
+#[cfg(windows)]
+pub mod spti;
 
 pub use fake::{FakeConfig, FakeDrive};
 
@@ -160,6 +163,138 @@ pub trait OpticalDrive {
         cancel: &CancelToken,
     ) -> Result<BurnReport>;
     fn erase(&mut self, kind: EraseKind, progress: &Progress, cancel: &CancelToken) -> Result<()>;
+
+    /// What this backend can do beyond burn/erase (M5).
+    fn caps(&self) -> Caps {
+        Caps::default()
+    }
+
+    /// The disc's table of contents, when the backend can read.
+    fn toc(&self) -> Result<Toc> {
+        err("this drive cannot read a table of contents")
+    }
+
+    /// Reads `count` consecutive sectors starting at `lba` in one
+    /// backend call. With `subchannel`, each returned sector carries
+    /// 96 extra bytes of raw subchannel data after its main payload.
+    /// The engine in [`rip`] falls back to single sectors to isolate
+    /// bad ones, so a chunk error should name no sector in
+    /// particular.
+    fn read_chunk(&mut self, _lba: u32, _count: u32, _subchannel: bool) -> Result<Vec<u8>> {
+        err("this drive cannot read raw sectors")
+    }
+
+    /// How a sector behaved on this drive, when the backend knows
+    /// without being asked twice (the fake drive's damage map; real
+    /// backends return `Good` and let the engine time the reads).
+    fn sector_quality(&self, _lba: u32) -> SectorQuality {
+        SectorQuality::Good
+    }
+
+    /// Burns an audio CD from decoded PCM tracks (M5). The fake
+    /// drive writes DAO with CD-Text and per-track pregaps; the
+    /// IMAPI2 path uses track-at-once (2 s gaps, no CD-Text — see
+    /// docs/LIMITATIONS.md).
+    fn burn_audio(
+        &mut self,
+        _tracks: &[AudioTrackData],
+        _opts: &AudioBurnOptions,
+        _progress: &Progress,
+        _cancel: &CancelToken,
+    ) -> Result<BurnReport> {
+        err("audio burning is not supported by this drive")
+    }
+}
+
+/// M5 capabilities of a drive backend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Caps {
+    /// Raw sector reads (MMC/SPTI or simulated).
+    pub read: bool,
+    /// Raw subchannel data alongside sector reads.
+    pub subchannel: bool,
+    /// Audio CD burning.
+    pub audio_burn: bool,
+    /// Disc-at-once audio with CD-Text and exact pregaps.
+    pub dao_cd_text: bool,
+}
+
+/// One track from a disc's table of contents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackInfo {
+    pub number: u32,
+    pub start_lba: u32,
+    pub sectors: u32,
+    pub audio: bool,
+    /// CD-Text / recorded title when known (fake burns; else None).
+    pub title: Option<String>,
+    pub performer: Option<String>,
+}
+
+/// A disc's table of contents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Toc {
+    pub tracks: Vec<TrackInfo>,
+    /// First sector past the last track.
+    pub lead_out_lba: u32,
+    /// Main-payload bytes per sector on this disc: 2352 for audio /
+    /// raw data, 2048 for cooked data.
+    pub sector_size: u32,
+}
+
+impl Toc {
+    pub fn total_sectors(&self) -> u32 {
+        self.lead_out_lba
+    }
+    pub fn is_audio(&self) -> bool {
+        !self.tracks.is_empty() && self.tracks.iter().all(|t| t.audio)
+    }
+    /// MSF (minutes, seconds, frames) for a sector address, the CD
+    /// frame being one sector at 75 per second.
+    pub fn msf(lba: u32) -> (u32, u32, u32) {
+        (lba / 4500, (lba / 75) % 60, lba % 75)
+    }
+}
+
+/// How one sector read behaved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectorQuality {
+    Good,
+    Slow,
+    Bad,
+}
+
+/// One decoded audio track ready to burn: 44.1 kHz 16-bit stereo
+/// PCM, a whole number of 2352-byte CD frames.
+#[derive(Debug, Clone)]
+pub struct AudioTrackData {
+    pub title: String,
+    pub performer: String,
+    pub pcm: Vec<u8>,
+    /// Silence before this track, in sectors (150 = 2 s standard).
+    pub gap_sectors: u32,
+}
+
+impl AudioTrackData {
+    pub fn sectors(&self) -> u32 {
+        (self.pcm.len() / 2352) as u32
+    }
+}
+
+/// How to burn an audio CD.
+#[derive(Debug, Clone)]
+pub struct AudioBurnOptions {
+    pub simulate: bool,
+    /// Finalize the disc (DAO backends and IMAPI alike).
+    pub close_disc: bool,
+    pub speed_kbps: Option<u32>,
+    pub eject_when_done: bool,
+}
+
+impl Default for AudioBurnOptions {
+    fn default() -> Self {
+        AudioBurnOptions { simulate: false, close_disc: true, speed_kbps: None, eject_when_done: false }
+    }
 }
 
 /// Lists the drives the real backend can see, as plain data. On
@@ -197,4 +332,33 @@ pub fn open(info: &DriveInfo) -> Result<Box<dyn OpticalDrive>> {
 /// windows' test route: a blank 700 MB CD-R.
 pub fn fake_drive() -> FakeDrive {
     FakeDrive::new(FakeConfig::default())
+}
+
+/// A simulated drive loaded with a data disc whose content is the
+/// given image bytes (2048-byte sectors) — the read-side `--fake`.
+pub fn fake_source_data(image: &[u8]) -> FakeDrive {
+    let mut d = FakeDrive::new(FakeConfig { media_blank: false, ..FakeConfig::default() });
+    d.load_image(image);
+    d
+}
+
+/// A simulated drive holding a small generated audio CD: three
+/// short sine-tone tracks, so ripping can be tried anywhere.
+pub fn fake_source_audio() -> FakeDrive {
+    let mut d = FakeDrive::new(FakeConfig { media_blank: false, ..FakeConfig::default() });
+    let mut tracks = Vec::new();
+    for (i, freq) in [440.0f32, 554.37, 659.25].iter().enumerate() {
+        let frames = 75 * 3; // 3 seconds per track
+        let mut pcm = Vec::with_capacity(frames * 2352);
+        for f in 0..frames * 588 {
+            let t = f as f32 / 44100.0;
+            let v = (t * freq * std::f32::consts::TAU).sin() * 0.5;
+            let s = (v * i16::MAX as f32) as i16;
+            pcm.extend_from_slice(&s.to_le_bytes());
+            pcm.extend_from_slice(&s.to_le_bytes());
+        }
+        tracks.push((format!("Tone {} ({} Hz)", i + 1, *freq as u32), pcm));
+    }
+    d.load_audio(tracks);
+    d
 }
