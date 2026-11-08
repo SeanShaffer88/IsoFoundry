@@ -6,25 +6,25 @@
 
 ## TL;DR
 
-IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays, disc image files (like `.iso`) and bootable USB drives. You pick a job from a grid of big buttons — burn a disc, copy one, turn files into an image, check an image for errors — or run the same job from the command line. Right now the released version (0.1.0) is the program's shell: the window, the command line and the behind-the-scenes helper. The disc-image tools are finished in the source code and arrive in the 0.2.0 release; disc burning, audio and USB writing follow on the [roadmap](#roadmap). Nothing in IsoFoundry needs the internet, and it never sends data anywhere.
+IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays, disc image files (like `.iso`) and bootable USB drives. You pick a job from a grid of big buttons — burn a disc, copy one, turn files into an image, check an image for errors — or run the same job from the command line. The current release (0.2.0) is the complete disc-image toolkit: create, browse, extract, edit and convert images, mount them, and check them against known-good hash lists. Disc burning, audio and USB writing follow on the [roadmap](#roadmap). Nothing in IsoFoundry needs the internet, and it never sends data anywhere.
 
 ## Status
 
-- **0.1.0 (released)** — the M0 shell: main window, command line and elevated helper. Every task button already answers with the version that will bring it.
-- **On `main`, shipping in 0.2.0** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the image tasks, and the same jobs run from the command line if you build from source. The new windows are **Unverified** until exercised on a real desktop.
+- **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The new task windows are **Unverified** until exercised on a real desktop.
+- **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — bootable USB (0.3.0), audio conversion (0.4.0), disc burning (0.5.0), disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
 
-## What the 0.1.0 release does
+## What the program does today
 
 - **Main window** — a 21-task grid (owner-drawn buttons with split-button menus; tasks that need administrator rights carry a shield mark), menus for Task / Options / Help, tooltips on every control, full keyboard navigation, a visible focus ring, a high-contrast palette, Per-Monitor DPI v2 scaling, a dark title bar, and window placement that is saved and checked against your monitors. One instance at a time.
-- **Command line** — also as the console twin `isofoundry.com`, so shells wait for it and capture its output: `--version`, `list` (every task, its CLI name, and when it ships), `helper-check [--elevated]`, `report --out FILE` (a redacted drive report for bug reports), and `clean`. Global `--json`, `--dry-run` and `--verbose/--debug` options. Task commands answer "not implemented yet" (exit code 40) until their milestone ships.
+- **Command line** — also as the console twin `isofoundry.com`, so shells wait for it and capture its output: `--version`, `list` (every task, its CLI name, and when it ships), `helper-check [--elevated]`, `report --out FILE` (a redacted drive report for bug reports), and `clean`. Global `--json`, `--dry-run` and `--verbose/--debug` options. The image commands below all work; tasks from later milestones answer "not implemented yet" (exit code 40) until their milestone ships.
 - **Elevated helper** — `isofoundry-helper.exe` does the few jobs that truly need administrator rights. It talks to the main program over a named pipe restricted to you, Administrators and SYSTEM, checks the calling process, and uses a per-session nonce with typed messages only.
 - **Settings & data** — versioned TOML settings with atomic writes (an unreadable settings file is quarantined, never silently overwritten), local logs, and a portable mode: put an `IsoFoundry.portable` file next to the program and everything stays in `data\` beside it.
 - **Drive reports** — Help → Export drive report writes a redacted JSON report you can attach to a "Drive report" issue, which is how real-drive compatibility gets confirmed (see [Hardware compatibility](#hardware-compatibility)).
 
-## Image tools (on `main` — arriving in 0.2.0)
+## Image tools
 
-These jobs are implemented and tested in the source tree today, from the command line and from the task windows:
+These jobs run from the task windows and the command line:
 
 - **`create-image`** — build an ISO from files and folders: ISO 9660 + Joliet + UDF 1.02 in one image sharing a single copy of the data, files over 4 GB, El Torito boot entries for BIOS (optional boot information table) and UEFI. Written to a `.part` file and renamed only when complete, so a cancelled build never leaves a half-written image.
 - **`image-info`** — an image's container format, tracks, file systems, label and boot entries.
@@ -139,7 +139,7 @@ All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task w
 | Milestone | Release | Scope |
 |---|---|---|
 | M0 Shell | 0.1.0 ✅ | Window, task grid, CLI skeleton, settings, logs, elevated helper, packaging |
-| M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — done on `main`, including the task windows |
+| M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — released in 0.2.0 |
 | M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
 | M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
 | M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn, multi-drive, job queue |

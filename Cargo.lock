@@ -102,7 +102,7 @@ dependencies = [
 
 [[package]]
 name = "if-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "getrandom",
  "serde",
@@ -112,7 +112,7 @@ dependencies = [
 
 [[package]]
 name = "if-hash"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crc32fast",
  "md-5",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "if-image"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "miniz_oxide",
  "sha1",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "if-core",
  "if-hash",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry-helper"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "if-core",
  "windows-sys",

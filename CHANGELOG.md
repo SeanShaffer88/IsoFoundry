@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Changed
 - Release shape: releases now carry only the x64 Setup.exe installer and the x64 Portable.zip, plus SHA256SUMS.txt — the WiX MSI, the ARM64 builds and the PortableApps.com zips are dropped (one installer and one portable zip per release). The release workflow builds a single x64 leg, and `packaging/package.ps1` no longer produces the removed assets. The published v0.1.0 assets were pruned to the same pair.
 
