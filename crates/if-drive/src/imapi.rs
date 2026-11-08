@@ -118,8 +118,11 @@ unsafe fn vtbl(p: *mut c_void) -> *const usize {
 }
 
 unsafe fn call<T>(p: *mut c_void, idx: usize) -> T {
-    let f: unsafe extern "system" fn() -> T = std::mem::transmute_copy(&*vtbl(p).add(idx));
-    f()
+    // Every v-table method takes the object pointer as its first
+    // argument — omitting it leaves the callee reading a garbage
+    // `this`, which faults intermittently depending on codegen.
+    let f: unsafe extern "system" fn(*mut c_void) -> T = std::mem::transmute_copy(&*vtbl(p).add(idx));
+    f(p)
 }
 
 fn hr(what: &str, code: HResult) -> Result<()> {
@@ -710,39 +713,14 @@ unsafe fn stream_on_file(path: &Path) -> Result<ComPtr> {
 }
 
 #[cfg(test)]
-mod probe_tests {
-    //! Staged probes for the CI access violation (RC): each stage
-    //! goes one call deeper into the enumeration path. Whichever
-    //! stages print `ok` in CI bound where the crash lives.
+mod tests {
     use super::*;
 
+    /// Regression test: listing drives crashed the process on
+    /// Windows (access violation) because the COM Release call
+    /// never received its object pointer. Runs on every CI run.
     #[test]
-    fn stage1_com_init() {
-        init_com().unwrap();
-    }
-
-    #[test]
-    fn stage2_create_master() {
-        init_com().unwrap();
-        let master = unsafe { create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2) }.unwrap();
-        drop(master);
-    }
-
-    #[test]
-    fn stage3_count_recorders() {
-        init_com().unwrap();
-        unsafe {
-            let master = create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2).unwrap();
-            type Count = unsafe extern "system" fn(*mut c_void, *mut i32) -> HResult;
-            let count_f: Count = std::mem::transmute_copy(&*vtbl(master.get()).add(slot::master::COUNT));
-            let mut count: i32 = -1;
-            hr("counting disc recorders", count_f(master.get(), &mut count)).unwrap();
-            assert!(count >= 0);
-        }
-    }
-
-    #[test]
-    fn stage4_full_enumerate() {
+    fn enumerate_returns_cleanly() {
         let drives = enumerate().unwrap();
         assert!(drives.len() < 64);
     }

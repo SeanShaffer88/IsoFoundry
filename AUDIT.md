@@ -33,7 +33,8 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | B-1 | README and roadmap credited M4 with "multi-drive burn" and a "job queue" that were never built. | Medium | Multi-drive burn delivered in the command line (`--all-drives`); the queue claim corrected to the parallel-task-window model (D-052). |
-| B-2 | The `report` command listed no drives and still said probing "arrives in M4". | Low | Fixed: it reports the enumerated drives. |
+| B-2 | The `report` command listed no drives and still said probing "arrives in M4". | Low | Fixed: the stale note is corrected; the report points at `isofoundry info` for the live drive list. |
+| B-10 | Listing drives crashed the process on Windows (CI access violation, found by the RC test runs): the hand-rolled COM Release call in the IMAPI backend never passed the object pointer, so it released through a garbage `this`. | High | Fixed: the pointer is passed; a regression test enumerates drives on every CI run. |
 | B-3 | `--help` printed an empty "not available yet" section once every task had shipped. | Low | Fixed: the section appears only when it has entries. |
 | B-4 | The bootable-USB variant menu showed a "planned for M2 (0.3)" notice for shipped work. | Low | Fixed: image → USB opens its window; USB → image points at the working `usb read` command. |
 | B-5 | Keyboard navigation (Tab, arrows, access keys) did not work inside task windows: dialog-message handling ran only for the main window. | Medium | Fixed: it runs for the window each message belongs to. |

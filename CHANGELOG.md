@@ -24,7 +24,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ### Fixed
 
 - Keyboard navigation (Tab, arrow keys, access keys) did not work inside task windows — only the main window processed them. It now works in every window.
-- The `report` command listed no drives and carried a stale note; it now reports the drives the drive layer finds.
+- The `report` command carried a stale note claiming drive probing still had to arrive; the note is corrected — the report points at `isofoundry info` for the live drive list.
+- Listing drives on Windows could crash the whole program: the disc-drive cleanup call dropped its object pointer. Fixed, and listing drives is now exercised by a test on every run.
 - `--help` printed an empty "not available yet" section once every task had shipped; the section only appears when it has entries.
 - The Create bootable USB variant menu pointed both variants at a "planned" notice: image → USB now opens the window that does it, and USB → image says plainly that it works from the command line today (`usb read`).
 
