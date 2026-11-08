@@ -7,6 +7,7 @@ pub mod cli_audio;
 pub mod cli_burn;
 pub mod cli_image;
 pub mod cli_mount;
+pub mod cli_rip;
 pub mod cli_usb;
 pub mod layout;
 pub mod theme;

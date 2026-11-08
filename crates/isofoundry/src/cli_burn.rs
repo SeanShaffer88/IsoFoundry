@@ -189,6 +189,32 @@ pub(crate) fn run_info(tail: &[String], _g: &Global, o: &mut Out) -> i32 {
                 Ok(_) => o.ok_text("   media: none inserted"),
                 Err(e) => o.ok_text(&format!("   media: could not be read ({e})")),
             }
+            // Full disc info (M5): the table of contents when the
+            // backend can read raw sectors.
+            let media_state = session.media();
+            if session.caps().read && matches!(&media_state, Ok(m) if m.present && !m.blank) {
+                match session.toc() {
+                    Ok(toc) => {
+                        o.ok_text(&format!(
+                            "   disc: {} sectors of {} bytes, {} track(s)",
+                            toc.lead_out_lba,
+                            toc.sector_size,
+                            toc.tracks.len()
+                        ));
+                        for t in &toc.tracks {
+                            let (m, sec, f) = if_drive::Toc::msf(t.start_lba);
+                            o.ok_text(&format!(
+                                "     track {:02}: {} at {m:02}:{sec:02}:{f:02}, {} sectors{}",
+                                t.number,
+                                if t.audio { "audio" } else { "data" },
+                                t.sectors,
+                                t.title.as_deref().map(|x| format!(" — {x}")).unwrap_or_default()
+                            ));
+                        }
+                    }
+                    Err(e) => o.ok_text(&format!("   disc: could not be read ({e})")),
+                }
+            }
         }
     }
     0

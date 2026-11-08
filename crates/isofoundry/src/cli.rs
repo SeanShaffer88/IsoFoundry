@@ -91,8 +91,18 @@ Burning commands:\n\
   burn-files DIR [--label NAME]   Burn a folder as a data disc\n\
   burn-mp3 DIR                     Burn an MP3 disc (playlist generated)\n\
   burn-video DIR                   Burn a DVD-video folder (VIDEO_TS)\n\
+  burn-audio FILES...              Burn an audio CD from audio files\n\
   erase [--full]                   Erase a rewritable disc\n\
-  info                             List drives and inserted media\n\
+  info                             List drives, inserted media and disc contents\n\
+\n\
+Rip and copy commands:\n\
+  copy-to-image IMG [--drive E:|--fake] [--raw] [--subchannel] [--retries N]\n\
+                       Rip a disc to an image (+ CUE, dump report, hash file)\n\
+  copy-disc [--from E:] [--to F:] [--yes]   Copy a disc to another drive\n\
+  rip [--out DIR] [--format wav|flac|mp3] [--cue] [--accuraterip]\n\
+                       Rip an audio CD, securely, with AccurateRip checksums\n\
+  surface-test             Read every sector once and grade the surface\n\
+  recover DIR              Extract files from a damaged disc, with a report\n\
 \n\
 Audio commands:\n\
   convert-audio FILES... --to wav|flac|mp3|aac [--out DIR] [--bitrate N] [--replaygain] [--apply-gain]\n\
@@ -333,6 +343,12 @@ pub fn run(
         "burn-video" => crate::cli_burn::run_burn_video(tail, &g, &mut o),
         "erase" => crate::cli_burn::run_erase(tail, &g, &mut o),
         "info" => crate::cli_burn::run_info(tail, &g, &mut o),
+        "copy-to-image" => crate::cli_rip::run_copy_to_image(tail, &g, &mut o),
+        "copy-disc" => crate::cli_rip::run_copy_disc(tail, &g, &mut o),
+        "rip" => crate::cli_rip::run_rip(tail, &g, &mut o),
+        "burn-audio" => crate::cli_rip::run_burn_audio(tail, &g, &mut o),
+        "surface-test" => crate::cli_rip::run_surface_test(tail, &g, &mut o),
+        "recover" => crate::cli_rip::run_recover(tail, &g, &mut o),
         "usb" | "windows-to-usb" => crate::cli_usb::run(cmd, tail, &g, platform, &mut o),
         other => match tasks::by_cli(other) {
             Some(t) => {
@@ -463,7 +479,7 @@ mod tests {
 
     #[test]
     fn task_commands_report_not_implemented() {
-        let (code, out, _) = call(&["burn-audio", "--json"], &dirs());
+        let (code, out, _) = call(&["backup", "--json"], &dirs());
         assert_eq!(code, 40);
         let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
         assert_eq!(v["exit"], "not_implemented");

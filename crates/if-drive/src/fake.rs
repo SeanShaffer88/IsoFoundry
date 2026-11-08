@@ -18,6 +18,10 @@ pub struct FakeConfig {
     pub media_blank: bool,
     /// Make verify-after-burn fail (for testing the failure path).
     pub corrupt_verify: bool,
+    /// Sectors that fail to read on a loaded disc (M5 damage map).
+    pub bad_sectors: Vec<u32>,
+    /// Sectors that read correctly but slowly (surface scans).
+    pub slow_sectors: Vec<u32>,
 }
 
 impl Default for FakeConfig {
@@ -30,6 +34,8 @@ impl Default for FakeConfig {
             media_present: true,
             media_blank: true,
             corrupt_verify: false,
+            bad_sectors: Vec::new(),
+            slow_sectors: Vec::new(),
         }
     }
 }
@@ -50,6 +56,13 @@ pub struct FakeDrive {
     free_bytes: u64,
     recorded: Vec<Recorded>,
     pub log: Vec<String>,
+    /// Loaded / burned disc content for the M5 read side: raw
+    /// sectors, their main-payload size, and the track layout.
+    disc_raw: Vec<u8>,
+    disc_sector_size: usize,
+    disc_tracks: Vec<crate::TrackInfo>,
+    /// Titles recorded by an audio burn, parallel to disc_tracks.
+    disc_closed_after_audio: bool,
 }
 
 impl FakeDrive {
@@ -63,7 +76,74 @@ impl FakeDrive {
             config,
             recorded: Vec::new(),
             log: Vec::new(),
+            disc_raw: Vec::new(),
+            disc_sector_size: 2048,
+            disc_tracks: Vec::new(),
+            disc_closed_after_audio: false,
         }
+    }
+
+    /// Loads a data disc: the image bytes become the disc's sectors
+    /// (2048-byte payloads, zero-padded to a whole sector).
+    pub fn load_image(&mut self, bytes: &[u8]) {
+        let sectors = bytes.len().div_ceil(2048);
+        let mut raw = bytes.to_vec();
+        raw.resize(sectors * 2048, 0);
+        self.disc_raw = raw;
+        self.disc_sector_size = 2048;
+        self.disc_tracks = vec![crate::TrackInfo {
+            number: 1,
+            start_lba: 0,
+            sectors: sectors as u32,
+            audio: false,
+            title: None,
+            performer: None,
+        }];
+        self.present = true;
+        self.blank = false;
+        self.closed = true;
+        self.free_bytes = 0;
+        self.log.push(format!("load image disc ({sectors} sectors)"));
+    }
+
+    /// Loads an audio disc from (title, PCM bytes) tracks; pregaps
+    /// between tracks are part of the track starts, CD-style.
+    pub fn load_audio(&mut self, tracks: Vec<(String, Vec<u8>)>) {
+        let mut raw = Vec::new();
+        let mut layout = Vec::new();
+        let mut lba = 0u32;
+        for (i, (title, pcm)) in tracks.into_iter().enumerate() {
+            let start = lba;
+            if i > 0 {
+                // 2 s pregap of silence belongs to the next track.
+                raw.resize(raw.len() + 150 * 2352, 0);
+                lba += 150;
+            }
+            let frames = (pcm.len() / 2352) as u32;
+            layout.push(crate::TrackInfo {
+                number: (i + 1) as u32,
+                start_lba: start,
+                sectors: frames + if i > 0 { 150 } else { 0 },
+                audio: true,
+                title: Some(title),
+                performer: None,
+            });
+            raw.extend_from_slice(&pcm[..frames as usize * 2352]);
+            lba += frames;
+        }
+        self.disc_raw = raw;
+        self.disc_sector_size = 2352;
+        self.disc_tracks = layout;
+        self.present = true;
+        self.blank = false;
+        self.closed = true;
+        self.free_bytes = 0;
+        self.log.push(format!("load audio disc ({lba} sectors)"));
+    }
+
+    /// The recorded audio tracks (title, data sectors), for tests.
+    pub fn audio_tracks(&self) -> Vec<(String, u32)> {
+        self.disc_tracks.iter().filter(|t| t.audio).map(|t| (t.title.clone().unwrap_or_default(), t.sectors)).collect()
     }
 
     /// Test/inspection view of what has been "burned".
@@ -236,6 +316,23 @@ impl OpticalDrive for FakeDrive {
         }
         self.log.push(format!("burn: {description} ({bytes} bytes)"));
         self.recorded.push(Recorded { description, bytes, digest: digest.clone() });
+        if let BurnSource::Image(path) = source {
+            if let Ok(bytes) = std::fs::read(path) {
+                let sectors = bytes.len().div_ceil(2048);
+                let mut raw = bytes;
+                raw.resize(sectors * 2048, 0);
+                self.disc_raw = raw;
+                self.disc_sector_size = 2048;
+                self.disc_tracks = vec![crate::TrackInfo {
+                    number: 1,
+                    start_lba: 0,
+                    sectors: sectors as u32,
+                    audio: false,
+                    title: None,
+                    performer: None,
+                }];
+            }
+        }
         self.blank = false;
         self.free_bytes -= bytes;
         let mut verified = false;
@@ -276,7 +373,144 @@ impl OpticalDrive for FakeDrive {
         self.closed = false;
         self.free_bytes = self.config.capacity_bytes;
         self.recorded.clear();
+        self.disc_raw.clear();
+        self.disc_tracks.clear();
         Ok(())
+    }
+
+    fn caps(&self) -> crate::Caps {
+        crate::Caps { read: true, subchannel: true, audio_burn: true, dao_cd_text: true }
+    }
+
+    fn toc(&self) -> Result<crate::Toc> {
+        self.require_media()?;
+        if self.disc_tracks.is_empty() {
+            return err("the disc is blank — there is no table of contents to read");
+        }
+        let lead_out = self.disc_tracks.last().map(|t| t.start_lba + t.sectors).unwrap_or(0);
+        Ok(crate::Toc {
+            tracks: self.disc_tracks.clone(),
+            lead_out_lba: lead_out,
+            sector_size: self.disc_sector_size as u32,
+        })
+    }
+
+    fn read_chunk(&mut self, lba: u32, count: u32, subchannel: bool) -> Result<Vec<u8>> {
+        self.require_media()?;
+        if self.disc_tracks.is_empty() {
+            return err("the disc is blank — nothing to read");
+        }
+        let size = self.disc_sector_size;
+        let total = (self.disc_raw.len() / size) as u32;
+        if lba + count > total {
+            return err(format!("read past the end of the disc (sector {} of {total})", lba + count));
+        }
+        for s in lba..lba + count {
+            if self.config.bad_sectors.contains(&s) {
+                return err(format!("read error at sector {s} (simulated damage)"));
+            }
+        }
+        let stride = if subchannel { size + 96 } else { size };
+        let mut out = vec![0u8; count as usize * stride];
+        for i in 0..count as usize {
+            let src = (lba as usize + i) * size;
+            out[i * stride..i * stride + size].copy_from_slice(&self.disc_raw[src..src + size]);
+            if subchannel {
+                // Deterministic pseudo-subchannel: the Q channel
+                // carries the sector address in BCD-ish bytes.
+                let a = lba as usize + i;
+                let sub = &mut out[i * stride + size..i * stride + size + 96];
+                sub[13] = (a / 4500) as u8;
+                sub[14] = ((a / 75) % 60) as u8;
+                sub[15] = (a % 75) as u8;
+            }
+        }
+        Ok(out)
+    }
+
+    fn sector_quality(&self, lba: u32) -> crate::SectorQuality {
+        if self.config.bad_sectors.contains(&lba) {
+            crate::SectorQuality::Bad
+        } else if self.config.slow_sectors.contains(&lba) {
+            crate::SectorQuality::Slow
+        } else {
+            crate::SectorQuality::Good
+        }
+    }
+
+    fn burn_audio(
+        &mut self,
+        tracks: &[crate::AudioTrackData],
+        opts: &crate::AudioBurnOptions,
+        progress: &Progress,
+        cancel: &CancelToken,
+    ) -> Result<BurnReport> {
+        self.require_media()?;
+        if tracks.is_empty() {
+            return err("no audio tracks to burn");
+        }
+        for t in tracks {
+            if t.pcm.len() % 2352 != 0 {
+                return err(format!("track '{}' is not a whole number of CD frames", t.title));
+            }
+        }
+        let total_sectors: u64 = tracks.iter().map(|t| u64::from(t.sectors() + t.gap_sectors)).sum();
+        let total_bytes = total_sectors * 2352;
+        if total_bytes > self.free_bytes {
+            return err(format!(
+                "the tracks need {} bytes but only {} are free on the disc",
+                total_bytes, self.free_bytes
+            ));
+        }
+        if !self.blank {
+            return err("the disc is not blank — audio burning needs a blank disc");
+        }
+        self.run_progress(total_bytes, progress, cancel)?;
+        if opts.simulate {
+            self.log.push(format!("simulate audio burn: {} tracks", tracks.len()));
+            return Ok(BurnReport {
+                bytes_written: 0,
+                verified: false,
+                notes: vec!["Simulated only — nothing was written.".to_string()],
+                backend: "Fake".into(),
+            });
+        }
+        // Materialize the disc exactly as a DAO write lays it out:
+        // each track's pregap is silence attributed to that track.
+        let mut raw = Vec::with_capacity(total_bytes as usize);
+        let mut layout = Vec::new();
+        let mut lba = 0u32;
+        for (i, t) in tracks.iter().enumerate() {
+            let gap = if i == 0 { 0 } else { t.gap_sectors };
+            raw.resize(raw.len() + gap as usize * 2352, 0);
+            layout.push(crate::TrackInfo {
+                number: (i + 1) as u32,
+                start_lba: lba,
+                sectors: gap + t.sectors(),
+                audio: true,
+                title: Some(t.title.clone()),
+                performer: Some(t.performer.clone()),
+            });
+            raw.extend_from_slice(&t.pcm);
+            lba += gap + t.sectors();
+        }
+        self.disc_raw = raw;
+        self.disc_sector_size = 2352;
+        self.disc_tracks = layout;
+        self.blank = false;
+        self.disc_closed_after_audio = opts.close_disc;
+        self.closed = opts.close_disc;
+        self.free_bytes -= total_bytes;
+        self.log.push(format!("burn audio (DAO, CD-Text): {} tracks, {total_sectors} sectors", tracks.len()));
+        if opts.eject_when_done {
+            self.log.push("eject".to_string());
+        }
+        Ok(BurnReport {
+            bytes_written: total_bytes,
+            verified: false,
+            notes: vec!["Audio CD written disc-at-once with CD-Text titles.".to_string()],
+            backend: "Fake".into(),
+        })
     }
 }
 

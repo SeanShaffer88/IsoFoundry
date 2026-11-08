@@ -32,8 +32,8 @@ impl Milestone {
             Milestone::M2 => "0.3",
             Milestone::M3 => "0.4",
             Milestone::M4 => "0.5",
-            Milestone::M5 => "0.6",
-            Milestone::M6 => "0.7",
+            Milestone::M5 => "0.5",
+            Milestone::M6 => "0.6",
         }
     }
 }

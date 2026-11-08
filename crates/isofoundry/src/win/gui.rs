@@ -988,6 +988,12 @@ fn run_action(hwnd: HWND, action: Action) {
                 "burn-video" => super::tasks::burnfiles::open_video(hwnd),
                 "erase" => super::tasks::erasewin::open(hwnd),
                 "drive-info" => super::tasks::driveinfo::open(hwnd),
+                "copy-to-image" => super::tasks::copyimage::open(hwnd),
+                "copy-disc" => super::tasks::copydisc::open(hwnd),
+                "rip-audio" => super::tasks::ripaudio::open(hwnd),
+                "burn-audio" => super::tasks::burnaudio::open(hwnd),
+                "surface-test" => super::tasks::surfacetest::open(hwnd),
+                "recover-files" => super::tasks::recoverwin::open(hwnd),
                 _ => {}
             }
         }

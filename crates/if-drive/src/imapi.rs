@@ -39,6 +39,8 @@ const CLSID_DISC_RECORDER2: GUID = guid(0x2735412d_7f64_5b0f_8f00_5d77afbe261e);
 const IID_DISC_RECORDER2: GUID = guid(0x27354133_7f64_5b0f_8f00_5d77afbe261e);
 const CLSID_FORMAT2_DATA: GUID = guid(0x2735412a_7f64_5b0f_8f00_5d77afbe261e);
 const IID_FORMAT2_DATA: GUID = guid(0x27354153_9f64_5b0f_8f00_5d77afbe261e);
+const CLSID_FORMAT2_TAO: GUID = guid(0x27354129_7f64_5b0f_8f00_5d77afbe261e);
+const IID_FORMAT2_TAO: GUID = guid(0x27354154_8f64_5b0f_8f00_5d77afbe261e);
 const CLSID_FORMAT2_ERASE: GUID = guid(0x2735412b_7f64_5b0f_8f00_5d77afbe261e);
 const IID_FORMAT2_ERASE: GUID = guid(0x27354156_8f64_5b0f_8f00_5d77afbe261e);
 const CLSID_FILE_SYSTEM_IMAGE: GUID = guid(0x2c941fc5_975b_59be_a960_9a2a262853a5);
@@ -77,6 +79,14 @@ mod slot {
         pub const MULTISESSION_INTERFACES: usize = 40;
         pub const WRITE: usize = 41;
         pub const SET_WRITE_SPEED: usize = 43;
+    }
+    pub mod format_tao {
+        pub const PREPARE_MEDIA: usize = 12;
+        pub const ADD_AUDIO_TRACK: usize = 13;
+        pub const RELEASE_MEDIA: usize = 15;
+        pub const SET_RECORDER: usize = 17;
+        pub const SET_DO_NOT_FINALIZE: usize = 25;
+        pub const SET_CLIENT_NAME: usize = 29;
     }
     pub mod format_erase {
         pub const SET_RECORDER: usize = 12;
@@ -310,6 +320,9 @@ pub struct ImapiSession {
     info: DriveInfo,
     recorder: ComPtr,
     format: Option<ComPtr>,
+    /// MMC/SPTI raw reader for the M5 read side; None when the
+    /// drive has no letter or raw access was refused.
+    reader: Option<crate::spti::SptiDrive>,
 }
 
 // The session owns raw COM pointers bound to its creating thread;
@@ -324,7 +337,8 @@ impl ImapiSession {
     pub fn open(info: DriveInfo) -> Result<ImapiSession> {
         init_com()?;
         let recorder = unsafe { create_recorder(&info.id)? };
-        Ok(ImapiSession { info, recorder, format: None })
+        let reader = info.letter.and_then(|l| crate::spti::SptiDrive::open(l).ok());
+        Ok(ImapiSession { info, recorder, format: None, reader })
     }
 
     /// Lazily creates (and caches) the IDiscFormat2Data object with
@@ -495,6 +509,107 @@ impl OpticalDrive for ImapiSession {
             progress.add(1);
             Ok(())
         }
+    }
+
+    fn caps(&self) -> crate::Caps {
+        crate::Caps {
+            read: self.reader.is_some(),
+            subchannel: self.reader.is_some(),
+            audio_burn: true,
+            dao_cd_text: false,
+        }
+    }
+
+    fn toc(&self) -> Result<crate::Toc> {
+        match &self.reader {
+            Some(r) => r.toc(),
+            None => err("raw disc reading is not available for this drive (no drive letter or access refused)"),
+        }
+    }
+
+    fn read_chunk(&mut self, lba: u32, count: u32, subchannel: bool) -> Result<Vec<u8>> {
+        match &self.reader {
+            Some(r) => r.read_chunk(lba, count, subchannel),
+            None => err("raw disc reading is not available for this drive (no drive letter or access refused)"),
+        }
+    }
+
+    fn burn_audio(
+        &mut self,
+        tracks: &[crate::AudioTrackData],
+        opts: &crate::AudioBurnOptions,
+        progress: &Progress,
+        cancel: &CancelToken,
+    ) -> Result<BurnReport> {
+        if tracks.is_empty() {
+            return err("no audio tracks to burn");
+        }
+        for t in tracks {
+            if t.pcm.len() % 2352 != 0 {
+                return err(format!("track '{}' is not a whole number of CD frames", t.title));
+            }
+        }
+        let total: u64 = tracks.iter().map(|t| t.pcm.len() as u64).sum();
+        let mut notes =
+            vec!["Written track-at-once through IMAPI2: fixed 2 s gaps, no CD-Text (the format cannot carry it)."
+                .to_string()];
+        if opts.simulate {
+            let media = self.media()?;
+            if !media.present {
+                return err("no disc in the drive");
+            }
+            notes.push("Simulated only — nothing was written.".to_string());
+            return Ok(BurnReport { bytes_written: 0, verified: false, notes, backend: "IMAPI2".into() });
+        }
+        progress.set_total(total);
+        unsafe {
+            let tao = create(&CLSID_FORMAT2_TAO, &IID_FORMAT2_TAO)?;
+            type SetRec = unsafe extern "system" fn(*mut c_void, *mut c_void) -> HResult;
+            let sr: SetRec = std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::SET_RECORDER));
+            hr("binding the recorder", sr(tao.get(), self.recorder.get()))?;
+            let name = BStr::new("IsoFoundry");
+            type SetName = unsafe extern "system" fn(*mut c_void, *mut c_void) -> HResult;
+            let nf: SetName = std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::SET_CLIENT_NAME));
+            let _ = nf(tao.get(), name.get());
+            if !opts.close_disc {
+                type SetBool = unsafe extern "system" fn(*mut c_void, VARIANT_BOOL) -> HResult;
+                let bf: SetBool =
+                    std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::SET_DO_NOT_FINALIZE));
+                let _ = bf(tao.get(), -1);
+            }
+            type F = unsafe extern "system" fn(*mut c_void) -> HResult;
+            let prep: F = std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::PREPARE_MEDIA));
+            hr("preparing the disc for audio tracks", prep(tao.get()))?;
+            let dir = std::env::temp_dir().join(format!("isofoundry-tao-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).map_err(|e| crate::Error(e.to_string()))?;
+            let mut result: Result<()> = (|| {
+                for (i, t) in tracks.iter().enumerate() {
+                    cancel.check().map_err(|e| crate::Error(e.to_string()))?;
+                    let path = dir.join(format!("track{:02}.raw", i + 1));
+                    std::fs::write(&path, &t.pcm).map_err(|e| crate::Error(e.to_string()))?;
+                    let stream = stream_on_file(&path)?;
+                    type Add = unsafe extern "system" fn(*mut c_void, *mut c_void) -> HResult;
+                    let af: Add = std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::ADD_AUDIO_TRACK));
+                    hr(&format!("adding track {}", i + 1), af(tao.get(), stream.get()))?;
+                    progress.add(t.pcm.len() as u64);
+                }
+                Ok(())
+            })();
+            if result.is_ok() {
+                let rel: F = std::mem::transmute_copy(&*vtbl(tao.get()).add(slot::format_tao::RELEASE_MEDIA));
+                result = hr("finalizing the audio disc", rel(tao.get()));
+            }
+            std::fs::remove_dir_all(&dir).ok();
+            result?;
+        }
+        if opts.eject_when_done {
+            unsafe {
+                type F = unsafe extern "system" fn(*mut c_void) -> HResult;
+                let f: F = std::mem::transmute_copy(&*vtbl(self.recorder.get()).add(slot::recorder::EJECT_MEDIA));
+                let _ = f(self.recorder.get());
+            }
+        }
+        Ok(BurnReport { bytes_written: total, verified: false, notes, backend: "IMAPI2".into() })
     }
 }
 
