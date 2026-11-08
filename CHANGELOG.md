@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-11-08
+
+### Added — first stable release
+
+- **IsoFoundry 1.0**: the complete 1.0 feature set, promoted from 0.9.0 with no feature changes — image tools (create, browse, edit, convert, mount, checksums with `.dat` hash files), bootable USB, audio conversion, disc burning (IMAPI2), MMC ripping and copying with secure audio rips, spanning backup and restore, and the RC pass (audit, failure drills, accessibility statement, measured budgets). Earlier entries below describe each piece as it landed.
+- Honest status, unchanged from 0.9.0: the disc, USB and audio hardware paths are proven against the simulated drive and in CI, and remain **Unverified on real hardware** until field runs happen (see docs/LIMITATIONS.md). The 1.x list (Spanish UI, multiboot USB, FAT/VHD image editing, XISO) is on the roadmap.
+
 ## [0.9.0] - 2026-11-08
 
 ### Added — RC pass: audit, failure drills, accessibility, measured budgets

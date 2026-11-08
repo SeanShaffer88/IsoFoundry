@@ -1,6 +1,6 @@
 # IsoFoundry — Quality scorecard
 
-Scored at the RC pass (2026-11-08) from evidence in this repo:
+Scored at the RC pass (2026-11-08) and re-confirmed unchanged for the 1.0 promotion the same day, from evidence in this repo:
 the full local gate, the RC failure drills
 (`crates/isofoundry/tests/drills.rs`), the capability matrix
 ([docs/PARITY.md](docs/PARITY.md)) and the measurements in
@@ -10,7 +10,7 @@ project's quality gate (pass = 85+, no dimension below 3).
 
 | Dimension | Score | Evidence |
 |---|---|---|
-| Correctness | 4 | Every milestone gated on the simulated drive + full workspace tests; RC drills cover hostile media, damage maps, tampering and cancellation |
+| Correctness | 4 | Every milestone gated on the simulated drive + full workspace tests; RC drills cover hostile media, damage maps, tampering and cancellation; the drive-listing crash CI caught is fixed with a regression test that now runs on every CI run |
 | Reliability | 4 | Atomic writes, settings quarantine, checksum-verified restores; no silent data loss paths found in the RC audit |
 | Performance | 4 | 50k-file image build at 0.48× raw copy (budget 1.5×); 165 MiB/s four-algorithm checksum |
 | Security | 4 | Helper runs a restricted named pipe with per-launch token; destructive targets confirmed by name/size; no telemetry |

@@ -12,6 +12,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 - **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
 - **0.5.0** — M4 disc burning plus M5 ripping and copying, through the `if-drive` layer (IMAPI2 burning, MMC/SPTI raw reading): burn image/files/MP3/video, erase, drive info with the disc's table of contents, disc → image with dump reports, disc → disc, secure audio ripping with AccurateRip checksums, audio CD burning, surface/quality scans and recovery from damaged discs — in task windows and from the command line. Every flow also runs against a built-in simulated drive (`--fake`), which is these milestones' test gate; no burn or rip has run on real hardware yet, so the hardware paths are **Unverified**.
+- **1.0.0** — first stable release: the complete 1.0 feature set (image tools, bootable USB, audio conversion, burning, ripping/copying, spanning backup) promoted from 0.9.0 with no feature changes. Hardware paths remain field-Unverified, as stated in the limitations.
 - **0.9.0** — M6 integration and the RC pass, grouped into one release: spanning backup/restore with a catalog on every span, auto-action on disc insert, shell completion scripts, Explorer verbs, an opt-in update check, MusicBrainz CD lookup, and completion actions (sound, notification, shutdown). Also fixes the M5 tasks showing as "planned" in the grid.
 - **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB and Install Windows to USB (`usb`, `windows-to-usb`; tested end-to-end against disk-image files — writing to a physical disk and booting from it are still to be confirmed on real hardware), and batch audio conversion with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
@@ -190,7 +191,7 @@ The honest list lives in [docs/LIMITATIONS.md](docs/LIMITATIONS.md) and is kept 
 
 ## Roadmap
 
-All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task works, tested and documented.
+The 0.x milestones shipped as public pre-releases; **1.0** (2026-11-08) is the first stable release — every 1.0 task works, tested and documented.
 
 | Milestone | Release | Scope |
 |---|---|---|

@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "if-audio"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "flacenc",
  "if-core",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "if-core"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "getrandom",
  "serde",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "if-drive"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "if-core",
  "if-hash",
@@ -318,7 +318,7 @@ dependencies = [
 
 [[package]]
 name = "if-hash"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "crc32fast",
  "md-5 0.11.0",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "if-image"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "miniz_oxide 0.8.9",
  "sha1",
@@ -346,7 +346,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "if-audio",
  "if-core",
@@ -362,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "isofoundry-helper"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "if-core",
  "if-image",
@@ -891,7 +891,7 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "usbwriter"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "if-core",
  "if-hash",
