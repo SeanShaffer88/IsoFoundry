@@ -14,6 +14,7 @@
 //! The MMC/SPTI backend (raw reads, DAO, quality scans) is M5 and
 //! is not part of this crate yet (ARCHITECTURE §3, D-003).
 
+pub mod discid;
 pub mod fake;
 #[cfg(windows)]
 pub mod imapi;

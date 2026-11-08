@@ -82,6 +82,13 @@ pub const AVAILABLE: &[&str] = &[
     "edit-image",
     "erase",
     "install-windows-usb",
+    "copy-to-image",
+    "copy-disc",
+    "rip-audio",
+    "burn-audio",
+    "surface-test",
+    "recover-files",
+    "backup",
 ];
 
 impl Task {

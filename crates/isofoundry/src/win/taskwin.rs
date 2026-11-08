@@ -126,6 +126,11 @@ pub(crate) fn run_job(
     let target = hwnd as usize;
     std::thread::spawn(move || {
         let r = work(shared.clone());
+        let summary = match &r {
+            Ok(t) => t.clone(),
+            Err(e) => format!("Failed: {e}"),
+        };
+        super::finish::on_job_finished(r.is_ok(), &summary);
         shared.finish(r);
         // SAFETY: the window outlives the job (closing cancels and waits
         // for this message first); `target` is the window we were given.
@@ -484,6 +489,11 @@ pub(crate) fn list_add(list: HWND, text: &str) {
 pub(crate) fn list_clear(list: HWND) {
     // SAFETY: our own list box.
     unsafe { SendMessageW(list, LB_RESETCONTENT, 0, 0) };
+}
+
+pub(crate) fn list_select(list: HWND, index: usize) {
+    // SAFETY: our own list box.
+    unsafe { SendMessageW(list, LB_SETCURSEL, index, 0) };
 }
 
 /// Selected indices of a (possibly extended-selection) list box.

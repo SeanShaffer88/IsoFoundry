@@ -11,7 +11,7 @@ use crate::layout::{self, px, Layout, Rect};
 use crate::theme::{self, colorref, Palette};
 use if_core::log::Logger;
 use if_core::paths::DataDirs;
-use if_core::settings::{LogLevel, Settings, WindowPlacement};
+use if_core::settings::{AutoAction, LogLevel, Settings, WindowPlacement};
 use if_core::{strings, tasks};
 use std::cell::RefCell;
 use std::process::ExitCode;
@@ -30,7 +30,8 @@ use windows_sys::Win32::UI::Controls::*;
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use windows_sys::Win32::UI::Shell::{
-    DefSubclassProc, SHGetStockIconInfo, SetWindowSubclass, ShellExecuteW, SHGSI_ICON, SHGSI_SMALLICON,
+    DefSubclassProc, SHGetStockIconInfo, SetWindowSubclass, ShellExecuteW, Shell_NotifyIconW, NIF_ICON, NIF_INFO,
+    NIF_TIP, NIIF_ERROR, NIIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW, SHGSI_ICON, SHGSI_SMALLICON,
     SHSTOCKICONINFO, SIID_SHIELD,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
@@ -49,6 +50,15 @@ const IDM_EXIT: u16 = 100;
 const IDM_OPEN_DATA: u16 = 101;
 const IDM_LOG_BASE: u16 = 110; // + LogLevel index
 const IDM_SOUND: u16 = 115;
+const IDM_TOAST: u16 = 116;
+const IDM_SHUTDOWN: u16 = 117;
+const IDM_MB: u16 = 118;
+const IDM_UPDATE: u16 = 119;
+const IDM_AUTO_BASE: u16 = 130; // + AutoAction index (Off, Image, Rip, Both)
+const TIMER_DISC: usize = 91;
+const TIMER_TOAST: usize = 92;
+/// Posted by the update-check thread with a heap `Box<String>` tag.
+const WM_UPDATE_AVAILABLE: u32 = WM_APP + 22;
 const IDM_VIEW_LOG: u16 = 120;
 const IDM_ROADMAP: u16 = 121;
 const IDM_REPORT: u16 = 122;
@@ -130,6 +140,10 @@ struct App {
     shield: HICON,
     logo: HICON,
     logo_size: i32,
+    /// Fingerprints of the discs seen at the last insert scan (M6).
+    disc_seen: Vec<String>,
+    /// A finish-notification balloon icon is currently added (M6).
+    toast_icon: bool,
 }
 
 thread_local! {
@@ -281,6 +295,8 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
             shield,
             logo: std::ptr::null_mut(),
             logo_size: 0,
+            disc_seen: Vec::new(),
+            toast_icon: false,
         };
         APP.with(|a| *a.borrow_mut() = Some(app));
         create_controls(hwnd);
@@ -292,6 +308,34 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
         with_app(|a| {
             a.log.info(format!("window ready at {} DPI", a.dpi));
         });
+        super::finish::set_main_hwnd(hwnd);
+        let (snd, tst, shd, check_updates) = with_app(|a| {
+            (
+                a.settings.sound_on_finish,
+                a.settings.toast_on_finish,
+                a.settings.shutdown_when_done,
+                a.settings.check_updates,
+            )
+        })
+        .unwrap_or((true, false, false, false));
+        super::finish::set_prefs(snd, tst, shd);
+        scan_discs(hwnd, false);
+        if check_updates {
+            let target = hwnd as usize;
+            std::thread::spawn(move || {
+                if let Ok(tag) = crate::cli_meta::fetch_latest_tag() {
+                    if crate::cli_meta::is_newer(&tag, if_core::APP_VERSION) {
+                        let boxed = Box::into_raw(Box::new(tag));
+                        // SAFETY: the window reclaims the box when it
+                        // handles the message; reclaim on failure.
+                        let posted = PostMessageW(target as HWND, WM_UPDATE_AVAILABLE, 0, boxed as LPARAM);
+                        if posted == 0 {
+                            drop(Box::from_raw(boxed));
+                        }
+                    }
+                }
+            });
+        }
 
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
@@ -416,6 +460,31 @@ fn build_menu(s: &Settings) -> HMENU {
             IDM_SOUND as usize,
             snd.as_ptr(),
         );
+        for (id, label, on) in [
+            (IDM_TOAST, "Show a &notification when a task finishes", s.toast_on_finish),
+            (IDM_SHUTDOWN, "Shut down the &PC when a task finishes", s.shutdown_when_done),
+            (IDM_MB, "Look up CDs on &MusicBrainz when ripping (online)", s.musicbrainz_lookup),
+            (IDM_UPDATE, "Check for &updates on start (online)", s.check_updates),
+        ] {
+            let w = wide(label);
+            AppendMenuW(opts, if on { MF_STRING | MF_CHECKED } else { MF_STRING }, id as usize, w.as_ptr());
+        }
+        let auto = CreatePopupMenu();
+        for (i, label) in ["&Off", "&Data discs: copy to image", "&Audio CDs: rip", "&Both"].iter().enumerate() {
+            let on = (i == 0 && s.auto_action == AutoAction::Off)
+                || (i == 1 && s.auto_action == AutoAction::Image)
+                || (i == 2 && s.auto_action == AutoAction::Rip)
+                || (i == 3 && s.auto_action == AutoAction::Both);
+            let w = wide(label);
+            AppendMenuW(
+                auto,
+                if on { MF_STRING | MF_CHECKED } else { MF_STRING },
+                (IDM_AUTO_BASE + i as u16) as usize,
+                w.as_ptr(),
+            );
+        }
+        let av = wide("&Auto-action on disc insert");
+        AppendMenuW(opts, MF_POPUP, auto as usize, av.as_ptr());
         AppendMenuW(opts, MF_SEPARATOR, 0, std::ptr::null());
         let data = wide("Open &data folder");
         AppendMenuW(opts, MF_STRING, IDM_OPEN_DATA as usize, data.as_ptr());
@@ -581,6 +650,7 @@ fn save_settings(a: &App) {
     if let Err(e) = if_core::settings::save(&a.dirs.settings_file(), &a.settings) {
         a.log.warn(format!("settings not saved: {e}"));
     }
+    super::finish::set_prefs(a.settings.sound_on_finish, a.settings.toast_on_finish, a.settings.shutdown_when_done);
 }
 
 fn current_palette() -> Palette {
@@ -920,6 +990,50 @@ fn on_command(hwnd: HWND, id: u16) {
             });
             Action::None
         }
+        IDM_TOAST | IDM_SHUTDOWN | IDM_MB | IDM_UPDATE => {
+            with_app(|a| {
+                let on = match id {
+                    IDM_TOAST => {
+                        a.settings.toast_on_finish = !a.settings.toast_on_finish;
+                        a.settings.toast_on_finish
+                    }
+                    IDM_SHUTDOWN => {
+                        a.settings.shutdown_when_done = !a.settings.shutdown_when_done;
+                        a.settings.shutdown_when_done
+                    }
+                    IDM_MB => {
+                        a.settings.musicbrainz_lookup = !a.settings.musicbrainz_lookup;
+                        a.settings.musicbrainz_lookup
+                    }
+                    _ => {
+                        a.settings.check_updates = !a.settings.check_updates;
+                        a.settings.check_updates
+                    }
+                };
+                save_settings(a);
+                // SAFETY: menu handle owned by the window.
+                unsafe {
+                    let m = GetMenu(a.hwnd);
+                    CheckMenuItem(m, id as u32, if on { MF_CHECKED } else { MF_UNCHECKED });
+                }
+            });
+            Action::None
+        }
+        x if (IDM_AUTO_BASE..IDM_AUTO_BASE + 4).contains(&x) => {
+            let mode =
+                [AutoAction::Off, AutoAction::Image, AutoAction::Rip, AutoAction::Both][(x - IDM_AUTO_BASE) as usize];
+            with_app(|a| {
+                a.settings.auto_action = mode;
+                save_settings(a);
+                a.log.info(format!("auto-action on disc insert: {mode:?}"));
+                // SAFETY: menu handle owned by the window.
+                unsafe {
+                    let m = GetMenu(a.hwnd);
+                    CheckMenuRadioItem(m, IDM_AUTO_BASE as u32, (IDM_AUTO_BASE + 3) as u32, x as u32, MF_BYCOMMAND);
+                }
+            });
+            Action::None
+        }
         x if (IDM_LOG_BASE..IDM_LOG_BASE + LEVELS.len() as u16).contains(&x) => {
             let level = LEVELS[(x - IDM_LOG_BASE) as usize];
             with_app(|a| {
@@ -948,6 +1062,7 @@ fn on_command(hwnd: HWND, id: u16) {
         }
         x if (ID_ARROW..ID_ARROW + tasks.len() as u16).contains(&x) => Action::VariantMenu((x - ID_ARROW) as usize),
         x if x >= ID_VARIANT => match variant_list().get((x - ID_VARIANT) as usize) {
+            Some((_, v)) if v.id == "backup-restore" => Action::OpenTask("backup-restore"),
             Some((_, v)) => Action::NotYet(
                 strings::variant_label(v.id).trim_end_matches('…').to_string(),
                 v.milestone.label(),
@@ -994,6 +1109,8 @@ fn run_action(hwnd: HWND, action: Action) {
                 "burn-audio" => super::tasks::burnaudio::open(hwnd),
                 "surface-test" => super::tasks::surfacetest::open(hwnd),
                 "recover-files" => super::tasks::recoverwin::open(hwnd),
+                "backup" => super::tasks::backupwin::open_backup(hwnd),
+                "backup-restore" => super::tasks::backupwin::open_restore(hwnd),
                 _ => {}
             }
         }
@@ -1273,6 +1390,49 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             on_command(hwnd, loword(wp));
             0
         }
+        m if m == super::finish::WM_FINISH_TOAST => {
+            // SAFETY: the box was created by the finish hook (or the
+            // update thread's sibling message below) and is ours now.
+            let text = unsafe { Box::from_raw(lp as *mut String) };
+            let ok = wp != 0;
+            with_app(|a| a.log.info(format!("task notification: {text}")));
+            show_balloon(hwnd, if ok { "Task finished" } else { "Task failed" }, &text, !ok);
+            0
+        }
+        WM_UPDATE_AVAILABLE => {
+            // SAFETY: heap tag string posted by the update thread.
+            let tag = unsafe { Box::from_raw(lp as *mut String) };
+            with_app(|a| a.log.info(format!("update available: IsoFoundry {tag}")));
+            show_balloon(
+                hwnd,
+                "Update available",
+                &format!(
+                    "IsoFoundry {} is available. Get it from the GitHub releases page.",
+                    tag.trim_start_matches('v')
+                ),
+                false,
+            );
+            0
+        }
+        WM_DEVICECHANGE if wp == 0x8000 => {
+            // DBT_DEVICEARRIVAL: give the disc a moment to spin up,
+            // then see what arrived.
+            // SAFETY: plain timer on our own window.
+            unsafe { SetTimer(hwnd, TIMER_DISC, 2000, None) };
+            0
+        }
+        WM_TIMER if wp == TIMER_DISC => {
+            // SAFETY: our own timer.
+            unsafe { KillTimer(hwnd, TIMER_DISC) };
+            scan_discs(hwnd, true);
+            0
+        }
+        WM_TIMER if wp == TIMER_TOAST => {
+            // SAFETY: our own timer.
+            unsafe { KillTimer(hwnd, TIMER_TOAST) };
+            hide_balloon(hwnd);
+            0
+        }
         WM_CLOSE => {
             with_app(save_placement);
             DestroyWindow(hwnd);
@@ -1283,5 +1443,91 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             0
         }
         _ => DefWindowProcW(hwnd, msg, wp, lp),
+    }
+}
+
+/// Shows (or refreshes) the finish-notification balloon (M6). The
+/// icon is temporary: it exists only while a balloon is up.
+fn show_balloon(hwnd: HWND, title: &str, text: &str, error: bool) {
+    let already = with_app(|a| a.toast_icon).unwrap_or(false);
+    // SAFETY: a stack NOTIFYICONDATAW with fixed-size buffers; the
+    // shell copies what it needs during the call.
+    unsafe {
+        let mut data: NOTIFYICONDATAW = std::mem::zeroed();
+        data.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+        data.hWnd = hwnd;
+        data.uID = 1;
+        data.uFlags = NIF_ICON | NIF_TIP | NIF_INFO;
+        data.hIcon = LoadIconW(hinstance(), 1 as _);
+        let put = |dst: &mut [u16], s: &str| {
+            for (i, u) in s.encode_utf16().take(dst.len() - 1).enumerate() {
+                dst[i] = u;
+            }
+        };
+        put(&mut data.szTip, "IsoFoundry");
+        put(&mut data.szInfoTitle, title);
+        put(&mut data.szInfo, text);
+        data.dwInfoFlags = if error { NIIF_ERROR } else { NIIF_INFO };
+        Shell_NotifyIconW(if already { NIM_MODIFY } else { NIM_ADD }, &data);
+        SetTimer(hwnd, TIMER_TOAST, 6000, None);
+    }
+    with_app(|a| a.toast_icon = true);
+}
+
+fn hide_balloon(hwnd: HWND) {
+    let added = with_app(|a| a.toast_icon).unwrap_or(false);
+    if !added {
+        return;
+    }
+    // SAFETY: removing our own temporary icon.
+    unsafe {
+        let mut data: NOTIFYICONDATAW = std::mem::zeroed();
+        data.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+        data.hWnd = hwnd;
+        data.uID = 1;
+        Shell_NotifyIconW(NIM_DELETE, &data);
+    }
+    with_app(|a| a.toast_icon = false);
+}
+
+/// Disc-insert scan (M6 auto-action): compares the discs now in the
+/// drives with the last scan; a genuinely new disc is logged and,
+/// when the user turned auto-action on, routed to its task window.
+/// With `announce = false` (startup) it only seeds the snapshot, so
+/// a disc that was already in the drive never triggers anything.
+fn scan_discs(hwnd: HWND, announce: bool) {
+    let (mode, seen) =
+        with_app(|a| (a.settings.auto_action, a.disc_seen.clone())).unwrap_or((AutoAction::Off, Vec::new()));
+    let mut current: Vec<String> = Vec::new();
+    let mut fresh: Vec<(bool, String)> = Vec::new();
+    for info in if_drive::enumerate() {
+        let Ok(d) = if_drive::open(&info) else { continue };
+        let Ok(m) = d.media() else { continue };
+        if !m.present {
+            continue;
+        }
+        let Ok(toc) = d.toc() else { continue };
+        let letter = info.letter.map(|c| c.to_string()).unwrap_or_default();
+        let fp = format!("{letter}:{}:{}", toc.lead_out_lba, toc.tracks.len());
+        if !seen.contains(&fp) {
+            fresh.push((toc.is_audio(), letter));
+        }
+        current.push(fp);
+    }
+    with_app(|a| a.disc_seen = current);
+    if !announce {
+        return;
+    }
+    for (audio, letter) in fresh {
+        note_log(&format!("disc inserted in {letter}: {}", if audio { "audio CD" } else { "data disc" }), false);
+        let task = match mode {
+            AutoAction::Image if !audio => Some("copy-to-image"),
+            AutoAction::Rip if audio => Some("rip-audio"),
+            AutoAction::Both => Some(if audio { "rip-audio" } else { "copy-to-image" }),
+            _ => None,
+        };
+        if let Some(id) = task {
+            run_action(hwnd, Action::OpenTask(id));
+        }
     }
 }

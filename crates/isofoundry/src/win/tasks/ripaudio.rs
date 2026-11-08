@@ -22,6 +22,7 @@ const ID_SECURE: u16 = 10;
 const ID_CUE: u16 = 11;
 const ID_GO: u16 = 12;
 const ID_CANCEL: u16 = 13;
+const ID_MB: u16 = 14;
 
 struct State {
     drives: DrivePane,
@@ -32,6 +33,7 @@ struct State {
     fmt_mp3: HWND,
     secure: HWND,
     cue: HWND,
+    mb: HWND,
     status: HWND,
     bar: HWND,
     go: HWND,
@@ -50,6 +52,7 @@ pub fn open(owner: HWND) {
         fmt_mp3: std::ptr::null_mut(),
         secure: std::ptr::null_mut(),
         cue: std::ptr::null_mut(),
+        mb: std::ptr::null_mut(),
         status: std::ptr::null_mut(),
         bar: std::ptr::null_mut(),
         go: std::ptr::null_mut(),
@@ -87,6 +90,12 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRES
                 s.secure = checkbox(hwnd, ID_SECURE, 332, 292, 200, "Secure rip (read twice)");
                 set_checked(s.secure, true);
                 s.cue = checkbox(hwnd, ID_CUE, 332, 316, 200, "Write CUE sheet (WAV)");
+                s.mb = checkbox(hwnd, ID_MB, 16, 316, 300, "MusicBrainz titles (online, opt-in)");
+                {
+                    let dirs = if_core::paths::current();
+                    let loaded = if_core::settings::load(&dirs.settings_file());
+                    set_checked(s.mb, loaded.settings.musicbrainz_lookup);
+                }
                 s.bar = progress_bar(hwnd, 16, 346, 628);
                 s.status = label(hwnd, 16, 370, 628, "Ready. The test drive holds a small generated audio CD.");
                 s.go = button(hwnd, ID_GO, 404, 402, 120, "Rip");
@@ -224,6 +233,7 @@ fn start(s: &mut State, hwnd: HWND) {
     .to_string();
     let secure = is_checked(s.secure);
     let cue = is_checked(s.cue);
+    let want_mb = is_checked(s.mb);
     let out_dir = PathBuf::from(out);
     set_enabled(s.go, false);
     set_enabled(s.cancel, true);
@@ -233,10 +243,30 @@ fn start(s: &mut State, hwnd: HWND) {
         let mut drive = open_drive(&info)?;
         let desc = info.display_name();
         let opts = if_drive::rip::RipAudioOptions { secure, retries: 3 };
+        let toc = drive.toc().map_err(|e| e.to_string())?;
+        let mut extra_log = crate::cli_rip::disc_id_lines(&toc);
+        let mut mb_titles: Option<Vec<String>> = None;
+        if want_mb {
+            match crate::cli_rip::mb_lookup(&toc) {
+                Ok(rel) => {
+                    extra_log.push(format!("MusicBrainz: {} – {}", rel.artist, rel.title));
+                    mb_titles = Some(rel.tracks);
+                }
+                Err(e) => extra_log.push(format!("MusicBrainz lookup not used: {e}")),
+            }
+        }
         let tracks =
             if_drive::rip::rip_audio(&mut *drive, &opts, &sh.progress(), &sh.cancel).map_err(|e| e.to_string())?;
         let bad: usize = tracks.iter().map(|t| t.bad_sectors.len()).sum();
-        let written = crate::cli_rip::write_ripped_tracks(&tracks, &out_dir, &format, cue, false, &desc)?;
+        let written = crate::cli_rip::write_ripped_tracks(
+            &tracks,
+            &out_dir,
+            &format,
+            cue,
+            false,
+            &desc,
+            &crate::cli_rip::RipMeta { titles: mb_titles.as_deref(), extra_log: &extra_log },
+        )?;
         Ok(format!(
             "Ripped {} tracks to {}.{}",
             written.len(),

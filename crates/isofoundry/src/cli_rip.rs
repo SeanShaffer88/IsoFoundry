@@ -33,10 +33,11 @@ struct Args {
     no_secure: bool,
     accuraterip: bool,
     on_the_fly: bool,
+    musicbrainz: bool,
 }
 
 const BOOL_FLAGS: &[&str] =
-    &["fake", "yes", "simulate", "raw", "subchannel", "cue", "no-secure", "accuraterip", "on-the-fly"];
+    &["fake", "yes", "simulate", "raw", "subchannel", "cue", "no-secure", "accuraterip", "on-the-fly", "musicbrainz"];
 
 fn parse_args(tail: &[String]) -> Result<Args, String> {
     let mut a = Args::default();
@@ -55,6 +56,7 @@ fn parse_args(tail: &[String]) -> Result<Args, String> {
                     "no-secure" => a.no_secure = true,
                     "accuraterip" => a.accuraterip = true,
                     "on-the-fly" => a.on_the_fly = true,
+                    "musicbrainz" => a.musicbrainz = true,
                     _ => unreachable!(),
                 }
                 i += 1;
@@ -393,6 +395,14 @@ pub(crate) fn write_wav(path: &Path, pcm: &[u8]) -> Result<(), String> {
 /// Writes ripped audio tracks into `out_dir` in the chosen
 /// format, plus the rip log and (for WAV) an optional CUE sheet.
 /// Returns the file paths written.
+/// Optional metadata for a rip (M6): MusicBrainz title overrides
+/// and extra lines for the rip log (disc IDs, lookup result).
+#[derive(Default)]
+pub(crate) struct RipMeta<'a> {
+    pub titles: Option<&'a [String]>,
+    pub extra_log: &'a [String],
+}
+
 pub(crate) fn write_ripped_tracks(
     tracks: &[rip::RippedTrack],
     out_dir: &Path,
@@ -400,13 +410,16 @@ pub(crate) fn write_ripped_tracks(
     cue: bool,
     accuraterip_flag: bool,
     desc: &str,
+    meta: &RipMeta<'_>,
 ) -> Result<Vec<String>, String> {
     std::fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
     let mut written = Vec::new();
     let mut log_lines = vec![format!("Ripped {desc}")];
-    for t in tracks {
+    log_lines.extend(meta.extra_log.iter().cloned());
+    for (idx, t) in tracks.iter().enumerate() {
+        let title = meta.titles.and_then(|ts| ts.get(idx)).map(|s| s.as_str()).unwrap_or(&t.title);
         let safe_title: String =
-            t.title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+            title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
         let stem = format!("{:02} - {}", t.number, safe_title.trim());
         let wav = out_dir.join(format!("{stem}.wav"));
         write_wav(&wav, &t.pcm)?;
@@ -424,7 +437,7 @@ pub(crate) fn write_ripped_tracks(
         log_lines.push(format!(
             "Track {:02} {}: {} sectors, {} bad, AccurateRip v1 {:08x} v2 {:08x}{}",
             t.number,
-            t.title,
+            title,
             t.pcm.len() / 2352,
             t.bad_sectors.len(),
             t.accuraterip_v1,
@@ -477,15 +490,38 @@ pub(crate) fn run_rip(tail: &[String], g: &Global, o: &mut Out) -> i32 {
         Ok(t) => t,
         Err(e) => return o.fail(Exit::Generic, &e.to_string()),
     };
+    let mut extra_log = disc_id_lines(&toc);
+    let mut mb_titles: Option<Vec<String>> = None;
+    let mut mb_note: Option<String> = None;
+    if a.musicbrainz {
+        match mb_lookup(&toc) {
+            Ok(rel) => {
+                mb_note = Some(format!("{} – {}", rel.artist, rel.title));
+                extra_log.push(format!("MusicBrainz: {} – {}", rel.artist, rel.title));
+                mb_titles = Some(rel.tracks);
+            }
+            Err(e) => {
+                extra_log.push(format!("MusicBrainz lookup not used: {e}"));
+                mb_note = Some(format!("lookup not used ({e})"));
+            }
+        }
+    }
     let opts = rip::RipAudioOptions { secure: !a.no_secure, retries: a.retries.unwrap_or(3) };
     let progress = Progress::default();
     match rip::rip_audio(&mut *drive, &opts, &progress, &CancelToken::new()) {
         Ok(tracks) => {
-            let written = match write_ripped_tracks(&tracks, &out_dir, &format, a.cue, a.accuraterip, &desc) {
+            let written = match write_ripped_tracks(
+                &tracks,
+                &out_dir,
+                &format,
+                a.cue,
+                a.accuraterip,
+                &desc,
+                &RipMeta { titles: mb_titles.as_deref(), extra_log: &extra_log },
+            ) {
                 Ok(w) => w,
                 Err(e) => return o.fail(Exit::Generic, &e),
             };
-            let _ = toc;
             if o.json {
                 o.ok_text(
                     &json!({"tracks": written.len(), "files": written, "out": out_dir.display().to_string()})
@@ -493,6 +529,9 @@ pub(crate) fn run_rip(tail: &[String], g: &Global, o: &mut Out) -> i32 {
                 );
             } else {
                 o.ok_text(&format!("ripped {} tracks from {desc} to {}", written.len(), out_dir.display()));
+                if let Some(note) = &mb_note {
+                    o.ok_text(&format!("MusicBrainz: {note}"));
+                }
             }
             0
         }
@@ -723,5 +762,109 @@ pub(crate) fn run_recover(tail: &[String], _g: &Global, o: &mut Out) -> i32 {
             0
         }
         Err(e) => o.fail(Exit::Generic, &e),
+    }
+}
+
+/// A MusicBrainz release match for a disc (M6).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MbRelease {
+    pub title: String,
+    pub artist: String,
+    pub tracks: Vec<String>,
+}
+
+/// Disc identification lines for the rip log: both disc IDs and
+/// the MusicBrainz lookup page. Empty for a data disc.
+pub(crate) fn disc_id_lines(toc: &if_drive::Toc) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(id) = if_drive::discid::musicbrainz_id(toc) {
+        lines.push(format!("MusicBrainz disc ID: {id}"));
+    }
+    if let Some(id) = if_drive::discid::freedb_id(toc) {
+        lines.push(format!("freedb disc ID: {id}"));
+    }
+    if let Some(url) = if_drive::discid::lookup_url(toc) {
+        lines.push(format!("MusicBrainz lookup: {url}"));
+    }
+    lines
+}
+
+/// Parses the first release of a MusicBrainz disc-id answer.
+pub(crate) fn parse_mb_release(body: &str) -> Option<MbRelease> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    let rel = v.get("releases")?.get(0)?;
+    let title = rel.get("title")?.as_str()?.to_string();
+    let artist = rel
+        .get("artist-credit")
+        .and_then(|a| a.get(0))
+        .and_then(|a| a.get("name").or_else(|| a.get("artist")?.get("name")))
+        .and_then(|n| n.as_str())
+        .unwrap_or("Unknown artist")
+        .to_string();
+    let mut tracks = Vec::new();
+    if let Some(media) = rel.get("media").and_then(|m| m.as_array()) {
+        for medium in media {
+            if let Some(ts) = medium.get("tracks").and_then(|t| t.as_array()) {
+                for t in ts {
+                    let name = t
+                        .get("title")
+                        .or_else(|| t.get("recording")?.get("title"))
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("Track");
+                    tracks.push(name.to_string());
+                }
+                if !tracks.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+    if tracks.is_empty() {
+        return None;
+    }
+    Some(MbRelease { title, artist, tracks })
+}
+
+/// Looks the disc up on MusicBrainz (online, opt-in). Windows
+/// only; any failure is reported, never fatal to the rip.
+pub(crate) fn mb_lookup(toc: &if_drive::Toc) -> Result<MbRelease, String> {
+    let id = if_drive::discid::musicbrainz_id(toc).ok_or("the disc has no audio tracks")?;
+    #[cfg(windows)]
+    {
+        let url = format!("https://musicbrainz.org/ws/2/discid/{id}?fmt=json&inc=recordings+artist-credits");
+        let body = crate::win::http::get(&url, &crate::cli_meta::user_agent())?;
+        parse_mb_release(&body).ok_or_else(|| "no MusicBrainz release matches this disc yet".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = id;
+        Err("online lookup needs Windows".into())
+    }
+}
+
+#[cfg(test)]
+mod mb_tests {
+    use super::*;
+    use if_drive::OpticalDrive as _;
+
+    #[test]
+    fn parses_a_release() {
+        let body = r#"{"releases":[{"title":"Kind of Blue","artist-credit":[{"name":"Miles Davis"}],
+          "media":[{"tracks":[{"title":"So What"},{"title":"Freddie Freeloader","recording":{"title":"x"}}]}]}]}"#;
+        let r = parse_mb_release(body).unwrap();
+        assert_eq!(r.title, "Kind of Blue");
+        assert_eq!(r.artist, "Miles Davis");
+        assert_eq!(r.tracks, ["So What", "Freddie Freeloader"]);
+        assert!(parse_mb_release("{}").is_none());
+        assert!(parse_mb_release(r#"{"releases":[]}"#).is_none());
+    }
+
+    #[test]
+    fn disc_id_lines_for_fake_audio() {
+        let d = if_drive::fake_source_audio();
+        let toc = d.toc().unwrap();
+        let lines = disc_id_lines(&toc);
+        assert!(lines.iter().any(|l| l.contains("QVQ3cY_KZqC3cV3YPPZPXOS7ciU-")));
+        assert!(lines.iter().any(|l| l.contains("08000d03")));
     }
 }

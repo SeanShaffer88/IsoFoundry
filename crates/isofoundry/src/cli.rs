@@ -95,12 +95,22 @@ Burning commands:\n\
   erase [--full]                   Erase a rewritable disc\n\
   info                             List drives, inserted media and disc contents\n\
 \n\
+Backup commands:\n\
+  backup FOLDER [--size cd|dvd|dvd-dl|bd] [--out-dir DIR] [--drive E:] [--fake] [--yes]\n\
+                       Spanning backup of a folder, one catalog on every span\n\
+  backup-restore DIR --from SPAN [--from SPAN ...] [--yes]\n\
+                       Restore a spanning backup (folders or span ISOs), checksums verified\n\n\
+Integration commands:\n\
+  completions powershell|bash   Print a shell completion script\n\
+  check-update         Ask GitHub for the newest release (online, on request only)\n\
+  explorer-verbs install|uninstall|status   Right-click entries for image files\n\n\
 Rip and copy commands:\n\
   copy-to-image IMG [--drive E:|--fake] [--raw] [--subchannel] [--retries N]\n\
                        Rip a disc to an image (+ CUE, dump report, hash file)\n\
   copy-disc [--from E:] [--to F:] [--yes]   Copy a disc to another drive\n\
-  rip [--out DIR] [--format wav|flac|mp3] [--cue] [--accuraterip]\n\
+  rip [--out DIR] [--format wav|flac|mp3] [--cue] [--accuraterip] [--musicbrainz]\n\
                        Rip an audio CD, securely, with AccurateRip checksums\n\
+                       (--musicbrainz also looks the CD up online for titles)\n\
   surface-test             Read every sector once and grade the surface\n\
   recover DIR              Extract files from a damaged disc, with a report\n\
 \n\
@@ -343,6 +353,11 @@ pub fn run(
         "burn-video" => crate::cli_burn::run_burn_video(tail, &g, &mut o),
         "erase" => crate::cli_burn::run_erase(tail, &g, &mut o),
         "info" => crate::cli_burn::run_info(tail, &g, &mut o),
+        "backup" => crate::cli_backup::run_backup(tail, &g, &mut o),
+        "backup-restore" => crate::cli_backup::run_restore(tail, &g, &mut o),
+        "completions" => crate::cli_meta::run_completions(tail, &g, &mut o),
+        "check-update" => crate::cli_meta::run_check_update(tail, &g, &mut o),
+        "explorer-verbs" => crate::cli_meta::run_explorer_verbs(tail, &g, &mut o),
         "copy-to-image" => crate::cli_rip::run_copy_to_image(tail, &g, &mut o),
         "copy-disc" => crate::cli_rip::run_copy_disc(tail, &g, &mut o),
         "rip" => crate::cli_rip::run_rip(tail, &g, &mut o),
@@ -478,12 +493,11 @@ mod tests {
     }
 
     #[test]
-    fn task_commands_report_not_implemented() {
-        let (code, out, _) = call(&["backup", "--json"], &dirs());
-        assert_eq!(code, 40);
-        let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
-        assert_eq!(v["exit"], "not_implemented");
-        assert!(v["message"].as_str().unwrap().contains("0.6"));
+    fn backup_needs_a_source_folder() {
+        // Every task command is implemented since M6; `backup` with
+        // no folder is a plain usage error, not a not-implemented.
+        let (code, _, _) = call(&["backup", "--json"], &dirs());
+        assert_eq!(code, 2);
     }
 
     #[test]

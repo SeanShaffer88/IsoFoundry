@@ -12,6 +12,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 - **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
 - **0.5.0** — M4 disc burning plus M5 ripping and copying, through the `if-drive` layer (IMAPI2 burning, MMC/SPTI raw reading): burn image/files/MP3/video, erase, drive info with the disc's table of contents, disc → image with dump reports, disc → disc, secure audio ripping with AccurateRip checksums, audio CD burning, surface/quality scans and recovery from damaged discs — in task windows and from the command line. Every flow also runs against a built-in simulated drive (`--fake`), which is these milestones' test gate; no burn or rip has run on real hardware yet, so the hardware paths are **Unverified**.
+- **0.6.0 (in development)** — M6 integration: spanning backup/restore with a catalog on every span, auto-action on disc insert, shell completion scripts, Explorer verbs, an opt-in update check, MusicBrainz CD lookup, and completion actions (sound, notification, shutdown). Also fixes the M5 tasks showing as "planned" in the grid.
 - **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB and Install Windows to USB (`usb`, `windows-to-usb`; tested end-to-end against disk-image files — writing to a physical disk and booting from it are still to be confirmed on real hardware), and batch audio conversion with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
@@ -58,6 +59,12 @@ Writing is guarded: the system disk, the boot/pagefile disk and fixed disks are 
 ## Ripping and copying
 
 - **`copy-to-image`, `copy-disc`, `rip`, `burn-audio`, `surface-test`, `recover`** — the M5 tasks, in windows and on the command line. Ripping a disc writes the image plus a dump report and a `.dat` hash file (raw rips add a CUE sheet; subchannel capture is optional). Audio rips are secure by default — every sector is read twice and the reads must agree — and land as WAV, FLAC or MP3 with AccurateRip checksums in the rip log. The surface test reads every sector once and grades the disc; recovery rips tolerantly and extracts what the filesystem still gives up, naming the files the bad sectors damaged. On the command line `--fake` reads a simulated source disc; in the windows the test drive does the same job.
+
+## Backup and integration (in development, 0.6.0)
+
+`backup FOLDER` packs a folder onto as many discs as it needs — one ISO per span, burned spans with a prompt per disc, or a rehearsal on the simulated drive — with the full catalog and a SHA-256 for every file on every span. `backup-restore` rebuilds the folder from span folders or ISOs and verifies every checksum. The same work lives in the Backup task window.
+
+Around the edges: `completions` prints shell completion scripts, `explorer-verbs` adds right-click Checksum / Image info entries for image files, `check-update` asks GitHub for the newest release (only when run, or on start if you opt in — nothing in IsoFoundry talks to the network unasked), disc insert can open the right task window (Options menu), and ripping an audio CD records its MusicBrainz and freedb disc IDs in the rip log, with an opt-in MusicBrainz lookup for real track titles.
 
 ## Command line
 

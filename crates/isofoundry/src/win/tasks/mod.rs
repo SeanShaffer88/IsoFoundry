@@ -3,6 +3,7 @@
 //! themselves are the same engine calls the CLI uses.
 
 pub mod audioconv;
+pub mod backupwin;
 pub mod bootusb;
 pub mod browse;
 pub mod burnaudio;
