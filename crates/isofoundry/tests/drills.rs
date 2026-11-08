@@ -246,7 +246,13 @@ fn backup_restore_rejects_a_corrupt_catalog() {
     std::fs::write(&catalog, b"{ this is not the catalog").unwrap();
     let dest = dir.join("out");
     std::fs::create_dir_all(&dest).unwrap();
-    let r = isofoundry::backup::restore(&staged.span_dirs, &dest, &dir.join("rtmp"), &Progress::default(), &CancelToken::new());
+    let r = isofoundry::backup::restore(
+        &staged.span_dirs,
+        &dest,
+        &dir.join("rtmp"),
+        &Progress::default(),
+        &CancelToken::new(),
+    );
     assert!(r.is_err(), "a corrupt catalog must stop the restore, not guess");
 }
 
