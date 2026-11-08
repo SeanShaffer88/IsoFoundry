@@ -5,7 +5,7 @@ members = ["crates/if-core", "crates/if-hash", "crates/if-image", "crates/usbwri
     "crates/if-drive", "crates/isofoundry", "crates/isofoundry-helper"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 authors = ["Sean Shaffer"]
