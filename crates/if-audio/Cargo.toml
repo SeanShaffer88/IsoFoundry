@@ -1,6 +1,6 @@
 [package]
 name = "if-audio"
-version = "0.2.0"
+version.workspace = true
 edition = "2021"
 license = "MIT"
 description = "Audio decode/encode pipeline for IsoFoundry (Symphonia decode; FLAC/WAV native encode; LAME and Media Foundation on Windows)."
