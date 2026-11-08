@@ -10,7 +10,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 ## Status
 
-- **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The new task windows are **Unverified** until exercised on a real desktop.
+- **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — bootable USB (0.3.0), audio conversion (0.4.0), disc burning (0.5.0), disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
 
@@ -61,11 +61,31 @@ Global options: `--json` (machine-readable output), `--verbose` / `--debug`, `--
 
 ## Screenshots
 
-The 0.1.0 main window — the 21-task grid on a real Windows desktop:
+All captures are from real runs on a real Windows desktop. No placeholder images are used.
+
+The 0.2.0 main window — the 21-task grid:
 
 ![IsoFoundry main window](docs/screenshots/main-window.png)
 
-More captures (task windows, progress with verify, drive info, USB write confirmation, high-contrast mode) are taken from real runs as each milestone ships. No placeholder images are used.
+**Create image** — files/folders, label, optional boot images:
+
+![Create image window](docs/screenshots/task-create.png)
+
+**Browse / extract image** — contents and extraction:
+
+![Browse image window](docs/screenshots/task-browse.png)
+
+**Edit image** — stage changes, save as a new image:
+
+![Edit image window](docs/screenshots/task-edit.png)
+
+**Convert image** — ISO, BIN/CUE, CloneCD or CHD:
+
+![Convert image window](docs/screenshots/task-convert.png)
+
+**Checksum** — hashes, `.dat` writing and verification:
+
+![Checksum window](docs/screenshots/task-checksum.png)
 
 ## Requirements
 
