@@ -342,7 +342,13 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
             if pre_translate(hwnd, &msg) {
                 continue;
             }
-            if IsDialogMessageW(hwnd, &msg) != 0 {
+            // Dialog navigation (Tab, arrows, mnemonics) must run
+            // against the window the message belongs to — the main
+            // window alone left every task window without working
+            // keyboard navigation (found in the RC accessibility pass).
+            let root = if msg.hwnd.is_null() { hwnd } else { GetAncestor(msg.hwnd, GA_ROOT) };
+            let dlg = if root.is_null() { hwnd } else { root };
+            if IsDialogMessageW(dlg, &msg) != 0 {
                 continue;
             }
             TranslateMessage(&msg);
@@ -952,6 +958,7 @@ unsafe extern "system" fn button_subclass(
 
 enum Action {
     None,
+    Info(String),
     NotYet(String, &'static str, &'static str),
     OpenTask(&'static str),
     VariantMenu(usize),
@@ -1063,6 +1070,10 @@ fn on_command(hwnd: HWND, id: u16) {
         x if (ID_ARROW..ID_ARROW + tasks.len() as u16).contains(&x) => Action::VariantMenu((x - ID_ARROW) as usize),
         x if x >= ID_VARIANT => match variant_list().get((x - ID_VARIANT) as usize) {
             Some((_, v)) if v.id == "backup-restore" => Action::OpenTask("backup-restore"),
+            Some((_, v)) if v.id == "usb-image-to-usb" => Action::OpenTask("bootable-usb"),
+            Some((_, v)) if v.id == "usb-usb-to-image" => Action::Info(
+                "Copy a USB stick to an image file from the command line:\n\nisofoundry usb read --disk N --out FILE\n\nA window for it is planned after 1.0; the copy itself works today.".to_string(),
+            ),
             Some((_, v)) => Action::NotYet(
                 strings::variant_label(v.id).trim_end_matches('…').to_string(),
                 v.milestone.label(),
@@ -1078,6 +1089,9 @@ fn on_command(hwnd: HWND, id: u16) {
 fn run_action(hwnd: HWND, action: Action) {
     match action {
         Action::None => {}
+        Action::Info(text) => {
+            message(hwnd, &text, MB_ICONINFORMATION);
+        }
         Action::Exit => {
             // SAFETY: closing our own window.
             unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };

@@ -65,6 +65,13 @@ Kept current every release. Items move out only with evidence.
 - **The update check and MusicBrainz lookup are the only network calls in the program**, both opt-in, both plain HTTPS reads with no account and no data sent beyond the disc ID (MusicBrainz) or the request itself. MusicBrainz answers depend on its community database: an unlisted CD rips with the names from the disc, and the lookup is simply noted in the log.
 - **The finish shutdown** uses Windows' announced shutdown (20-second grace, a message on screen, `shutdown /a` cancels). If another program blocks the shutdown, Windows says so; IsoFoundry does not force it.
 
+## Release candidate pass (RC)
+
+- Several jobs at once means several task windows; there is no
+  central job queue.
+- Copying a USB stick to an image has no window yet — it works
+  from the command line (`usb read`).
+
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
 - MP3 encoding needs `libmp3lame.dll` next to the program or on the PATH (loaded at runtime, never bundled, D-012); without it, MP3 jobs fail with a clear message. The LAME path is **Unverified** on a real Windows machine.

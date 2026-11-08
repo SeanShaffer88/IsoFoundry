@@ -12,7 +12,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 - **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
 - **0.5.0** — M4 disc burning plus M5 ripping and copying, through the `if-drive` layer (IMAPI2 burning, MMC/SPTI raw reading): burn image/files/MP3/video, erase, drive info with the disc's table of contents, disc → image with dump reports, disc → disc, secure audio ripping with AccurateRip checksums, audio CD burning, surface/quality scans and recovery from damaged discs — in task windows and from the command line. Every flow also runs against a built-in simulated drive (`--fake`), which is these milestones' test gate; no burn or rip has run on real hardware yet, so the hardware paths are **Unverified**.
-- **0.6.0 (in development)** — M6 integration: spanning backup/restore with a catalog on every span, auto-action on disc insert, shell completion scripts, Explorer verbs, an opt-in update check, MusicBrainz CD lookup, and completion actions (sound, notification, shutdown). Also fixes the M5 tasks showing as "planned" in the grid.
+- **0.9.0** — M6 integration and the RC pass, grouped into one release: spanning backup/restore with a catalog on every span, auto-action on disc insert, shell completion scripts, Explorer verbs, an opt-in update check, MusicBrainz CD lookup, and completion actions (sound, notification, shutdown). Also fixes the M5 tasks showing as "planned" in the grid.
 - **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB and Install Windows to USB (`usb`, `windows-to-usb`; tested end-to-end against disk-image files — writing to a physical disk and booting from it are still to be confirmed on real hardware), and batch audio conversion with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
@@ -198,10 +198,10 @@ All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task w
 | M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — released in 0.2.0 |
 | M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
 | M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
-| M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn, multi-drive, job queue |
+| M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn |
 | M5 Disc & ripping (MMC) | 0.5.0 | Disc → image (raw + subchannel), disc → disc, secure audio ripping, audio CD burning, surface/quality scans, recovery |
-| M6 Integration | 0.6.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check, MusicBrainz, completion actions |
-| RC / 1.0 | 0.9.0 / 1.0 | Audit pass, failure drills, accessibility pass, screenshots, release |
+| M6 Integration | 0.9.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check, MusicBrainz, completion actions |
+| RC / 1.0 | 0.9.0 / 1.0 | Audit pass, failure drills, accessibility pass, measured budgets, release |
 | 1.x | — | Multiboot USB, FAT/VHD image editing, Xbox XISO, Spanish UI, native Windows 11 context menu |
 | 2.0 | — | Windows ISO customization integrated from [WinISOPilot](https://github.com/SeanShaffer88/WinISOPilot) |
 

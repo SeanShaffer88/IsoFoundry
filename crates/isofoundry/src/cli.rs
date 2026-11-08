@@ -1,5 +1,6 @@
-//! Command line (D-016). Every grid task has a subcommand; until its
-//! milestone ships the subcommand reports `not_implemented` (exit 40).
+//! Command line (D-016). Every grid task has a subcommand; since M6
+//! all of them are implemented (the `not_implemented` exit 40 remains
+//! in the exit-code table for completeness).
 //! Platform work (helper launch, OS version) comes in through [`Platform`].
 
 use if_core::error::Exit;
@@ -87,7 +88,7 @@ USB commands (administrator rights via the helper; disk targets erase the disk):
                        Windows installer stick (Microsoft's own boot files;\n\
                        gpt-ntfs for images whose install.wim is over 4 GB)\n\n\
 Burning commands:\n\
-  burn-image IMG [--drive E:|--fake] [--simulate] [--append] [--close] [--speed N] [--yes]\n\
+  burn-image IMG [--drive E:|--fake|--all-drives] [--simulate] [--append] [--close] [--speed N] [--yes]\n\
   burn-files DIR [--label NAME]   Burn a folder as a data disc\n\
   burn-mp3 DIR                     Burn an MP3 disc (playlist generated)\n\
   burn-video DIR                   Burn a DVD-video folder (VIDEO_TS)\n\
@@ -118,19 +119,23 @@ Audio commands:\n\
   convert-audio FILES... --to wav|flac|mp3|aac [--out DIR] [--bitrate N] [--replaygain] [--apply-gain]\n\
                        Convert audio files in a batch; tags are carried across\n\n\
 Image commands:\n{}{}\n\
-Task commands not available yet (exit code 40 until their version ships):\n",
+",
         if_core::APP_VERSION,
         crate::cli_image::USAGE,
         crate::cli_mount::USAGE
     );
-    for t in tasks::all().filter(|t| !t.is_available()) {
-        s.push_str(&format!(
-            "  {:<20} {} [{} / {}]\n",
-            t.cli,
-            strings::task_title(t.id),
-            t.milestone.label(),
-            t.milestone.release()
-        ));
+    let pending: Vec<_> = tasks::all().filter(|t| !t.is_available()).collect();
+    if !pending.is_empty() {
+        s.push_str("Task commands not available yet (exit code 40 until their version ships):\n");
+        for t in pending {
+            s.push_str(&format!(
+                "  {:<20} {} [{} / {}]\n",
+                t.cli,
+                strings::task_title(t.id),
+                t.milestone.label(),
+                t.milestone.release()
+            ));
+        }
     }
     s.push_str(
         "\nGlobal options:\n\
@@ -394,7 +399,19 @@ pub fn log_tail(dirs: &if_core::paths::DataDirs, log: &if_core::log::Logger) -> 
 }
 
 pub fn build_report(platform: &dyn Platform, tail: Vec<String>) -> if_core::report::DriveReport {
-    if_core::report::DriveReport::new(platform.os_description(), Vec::new(), "drive probing arrives in M4 (0.5)", tail)
+    let drives: Vec<if_core::report::DriveEntry> = if_drive::enumerate()
+        .iter()
+        .map(|d| if_core::report::DriveEntry {
+            letter: d.letter.map(|c| c.to_string()).unwrap_or_default(),
+            vendor: d.vendor.trim().to_string(),
+            model: d.product.trim().to_string(),
+            firmware: d.revision.trim().to_string(),
+            serial: None,
+        })
+        .collect();
+    let probe =
+        if drives.is_empty() { "no optical drives found" } else { "optical drives enumerated via the drive layer" };
+    if_core::report::DriveReport::new(platform.os_description(), drives, probe, tail)
         .redacted(platform.user_profile().as_deref())
 }
 

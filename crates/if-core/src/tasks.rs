@@ -29,11 +29,13 @@ impl Milestone {
     pub fn release(self) -> &'static str {
         match self {
             Milestone::M1 => "0.2",
-            Milestone::M2 => "0.3",
+            // M2 shipped inside 0.4.0 (0.3.0 was held and grouped).
+            Milestone::M2 => "0.4",
             Milestone::M3 => "0.4",
             Milestone::M4 => "0.5",
             Milestone::M5 => "0.5",
-            Milestone::M6 => "0.6",
+            // M6 ships grouped with the RC pass as 0.9.0 (SEAN, 2026-11-08).
+            Milestone::M6 => "0.9",
         }
     }
 }

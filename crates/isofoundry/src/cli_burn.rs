@@ -26,11 +26,12 @@ struct Args {
     close: bool,
     eject: bool,
     full: bool,
+    all_drives: bool,
     label: Option<String>,
     speed: Option<u32>,
 }
 
-const BOOL_FLAGS: &[&str] = &["fake", "yes", "simulate", "no-verify", "append", "close", "eject", "full"];
+const BOOL_FLAGS: &[&str] = &["fake", "yes", "simulate", "no-verify", "append", "close", "eject", "full", "all-drives"];
 
 fn parse_args(tail: &[String]) -> Result<Args, String> {
     let mut a = Args::default();
@@ -48,6 +49,7 @@ fn parse_args(tail: &[String]) -> Result<Args, String> {
                     "close" => a.close = true,
                     "eject" => a.eject = true,
                     "full" => a.full = true,
+                    "all-drives" => a.all_drives = true,
                     _ => unreachable!(),
                 }
                 i += 1;
@@ -221,6 +223,9 @@ pub(crate) fn run_info(tail: &[String], _g: &Global, o: &mut Out) -> i32 {
 }
 
 fn run_burn(source: if_drive::BurnSource, a: &Args, g: &Global, o: &mut Out, what: &str) -> i32 {
+    if a.all_drives && !a.fake {
+        return run_burn_all(source, a, g, o, what);
+    }
     let info = match pick_drive(a) {
         Ok(i) => i,
         Err(e) => return o.fail(Exit::Usage, &e),
@@ -258,6 +263,75 @@ fn run_burn(source: if_drive::BurnSource, a: &Args, g: &Global, o: &mut Out, wha
     }
 }
 
+/// `--all-drives`: burn the same source to every enumerated drive,
+/// one after another (RC: the M4 roadmap's multi-drive burn). Each
+/// drive's result is reported; the exit code is 0 only if all burn.
+fn run_burn_all(source: if_drive::BurnSource, a: &Args, g: &Global, o: &mut Out, what: &str) -> i32 {
+    let drives = if_drive::enumerate();
+    if drives.len() < 2 {
+        return o.fail(
+            Exit::Usage,
+            &format!("--all-drives found {} drive(s); it needs at least two — use --drive for one", drives.len()),
+        );
+    }
+    if !g.dry_run && !a.yes {
+        for d in &drives {
+            o.ok_text(&format!("plan: {what} on {}", d.display_name()));
+        }
+        o.ok_text("re-run with --yes to burn to all of them");
+        return 0;
+    }
+    if g.dry_run {
+        for d in &drives {
+            o.ok_text(&format!("dry run: {what} on {}", d.display_name()));
+        }
+        return 0;
+    }
+    let mut results = Vec::new();
+    let mut failed = 0usize;
+    for info in &drives {
+        let mut session = match if_drive::open(info) {
+            Ok(s) => s,
+            Err(e) => {
+                failed += 1;
+                results.push(json!({ "drive": info.display_name(), "ok": false, "error": e.to_string() }));
+                if !o.json {
+                    o.ok_text(&format!("{}: could not open the drive: {e}", info.display_name()));
+                }
+                continue;
+            }
+        };
+        match session.burn(&source, &options(a), &Progress::default(), &CancelToken::new()) {
+            Ok(rep) => {
+                results.push(json!({ "drive": info.display_name(), "ok": true, "bytes_written": rep.bytes_written, "verified": rep.verified }));
+                if !o.json {
+                    o.ok_text(&format!("{}: done, {} bytes written", info.display_name(), rep.bytes_written));
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                results.push(json!({ "drive": info.display_name(), "ok": false, "error": e.to_string() }));
+                if !o.json {
+                    o.ok_text(&format!("{}: burn failed: {e}", info.display_name()));
+                }
+            }
+        }
+    }
+    if failed == 0 {
+        if o.json {
+            o.ok_text(&json!({ "ok": true, "drives": results }).to_string());
+        } else {
+            o.ok_text(&format!("multi-drive burn: all {} drives succeeded", drives.len()));
+        }
+        0
+    } else {
+        if !o.json {
+            o.ok_text(&format!("multi-drive burn: {} of {} drives succeeded", drives.len() - failed, drives.len()));
+        }
+        o.fail(Exit::Generic, &format!("{failed} drive(s) failed"))
+    }
+}
+
 pub(crate) fn run_burn_image(tail: &[String], g: &Global, o: &mut Out) -> i32 {
     let a = match parse_args(tail) {
         Ok(a) => a,
@@ -266,7 +340,7 @@ pub(crate) fn run_burn_image(tail: &[String], g: &Global, o: &mut Out) -> i32 {
     let Some(img) = a.pos.first() else {
         return o.fail(
             Exit::Usage,
-            "usage: burn-image <image> [--drive E:|--fake] [--simulate] [--append] [--close] [--speed N] [--yes]",
+            "usage: burn-image <image> [--drive E:|--fake|--all-drives] [--simulate] [--append] [--close] [--speed N] [--yes]",
         );
     };
     let path = PathBuf::from(img);
