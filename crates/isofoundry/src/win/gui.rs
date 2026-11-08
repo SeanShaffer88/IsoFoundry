@@ -982,6 +982,12 @@ fn run_action(hwnd: HWND, action: Action) {
                 "bootable-usb" => super::tasks::bootusb::open(hwnd),
                 "install-windows-usb" => super::tasks::winusb::open(hwnd),
                 "convert-audio" => super::tasks::audioconv::open(hwnd),
+                "burn-image" => super::tasks::burnimage::open(hwnd),
+                "burn-files" => super::tasks::burnfiles::open_files(hwnd),
+                "burn-mp3" => super::tasks::burnfiles::open_mp3(hwnd),
+                "burn-video" => super::tasks::burnfiles::open_video(hwnd),
+                "erase" => super::tasks::erasewin::open(hwnd),
+                "drive-info" => super::tasks::driveinfo::open(hwnd),
                 _ => {}
             }
         }

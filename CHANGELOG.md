@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Added
+- M4 burning: **Burn image**, **Burn files**, **Burn MP3 CD/DVD**, **Burn video folder**, **Erase disc** and **Drive info** — a new `if-drive` engine with an IMAPI2 backend on Windows (drive/media info, image and files burns with multisession append, erase) and a simulated drive with real job semantics (capacity and blank checks, SHA-256 verify after burn) that every flow can run against with `--fake`. Task windows and commands (`burn-image`, `burn-files`, `burn-mp3`, `burn-video`, `erase`, `info`) throughout. The IMAPI2 path is Unverified on real hardware (this milestone's test gate is the simulated drive); verify-after-burn on the IMAPI path arrives with the M5 read-back work.
+
 ## [0.4.0] - 2026-11-08
 
 ### Added

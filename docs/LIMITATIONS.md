@@ -40,6 +40,13 @@ Kept current every release. Items move out only with evidence.
 - FAT32 layouts cannot hold an `install.wim`/`install.esd` over the 4 GB FAT32 file limit — the write is refused with a clear message; use the GPT+NTFS layout. Splitting an install image is not supported yet.
 - Files mode needs a readable ISO image; raw mode accepts any image file.
 
+## Burning (M4)
+- The IMAPI2 backend is **Unverified**: no burn, erase or media query has run against a real recorder (development machines here have no optical drive). This milestone's test gate is the simulated drive (`--fake` in the CLI, "test drive" in the windows), which implements the job semantics — capacity, blank/appendable state, digest verify — for real.
+- Verify after burn does a real digest comparison on the simulated drive only. On the IMAPI path it is reported as unavailable: reading a disc back arrives with the M5 ripping work.
+- Burn progress on the IMAPI path is indeterminate while the write runs (IDiscFormat2Data's Write call blocks; there is no progress callback in this build), and Cancel cannot interrupt a write already in progress.
+- "Simulate" on the IMAPI path runs every check (recorder, media, capacity) and writes nothing — IMAPI2's data format has no test-write mode.
+- An MP3 disc is a *data* disc with the audio files plus a generated `playlist.m3u` (what car and hardware players read). A true audio CD is the M5 `burn-audio` task.
+
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
 - MP3 encoding needs `libmp3lame.dll` next to the program or on the PATH (loaded at runtime, never bundled, D-012); without it, MP3 jobs fail with a clear message. The LAME path is **Unverified** on a real Windows machine.
