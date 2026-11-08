@@ -981,6 +981,7 @@ fn run_action(hwnd: HWND, action: Action) {
                 "edit-image" => super::tasks::edit::open(hwnd),
                 "bootable-usb" => super::tasks::bootusb::open(hwnd),
                 "install-windows-usb" => super::tasks::winusb::open(hwnd),
+                "convert-audio" => super::tasks::audioconv::open(hwnd),
                 _ => {}
             }
         }

@@ -5,6 +5,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ## [Unreleased]
 
 ### Added
+- M3 audio: **Convert audio** — a new `if-audio` engine (Symphonia decoding; WAV and FLAC encoding natively; MP3 through `libmp3lame.dll` loaded at runtime, never bundled; AAC/M4A through Windows Media Foundation), a batch task window and a `convert-audio` command. Tags are carried across conversions, and ReplayGain can be measured into the output's tags or baked into the samples. Opus/Ogg Vorbis encoding is not offered yet (no permissive pure-Rust encoder exists); decoding them works.
 - M2 USB: **Create bootable USB** and **Install Windows to USB** — a new `usbwriter` engine (MBR/GPT partitioning, FAT32 formatting, ISO file copy, raw image write with optional SHA-256 verify, USB → image), task windows with disk picking and a typed ERASE confirmation for targets with mounted volumes or over 64 GB, `usb list` / `usb write` / `usb read` and `windows-to-usb` commands, and helper protocol v2 for the elevated disk work. Windows installer layouts: MBR+FAT32, GPT+FAT32 and GPT+NTFS (for install images over the FAT32 file limit).
 
 ### Fixed
