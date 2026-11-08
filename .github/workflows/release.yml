@@ -2,8 +2,9 @@ name: Release
 
 # Publishes a GitHub release when a release/v* branch is pushed (the tag is
 # created at that commit). Notes come from the matching CHANGELOG section.
-# Assets (D-044): x64 Setup.exe and MSI, x64/ARM64 portable and
-# PortableApps.com zips, SHA256SUMS.txt.
+# Assets: one installer and one portable zip, x64 only —
+# IsoFoundry-v<ver>-x64-Setup.exe, IsoFoundry-v<ver>-x64-Portable.zip,
+# SHA256SUMS.txt.
 
 on:
   push:
@@ -14,11 +15,6 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - { target: x86_64-pc-windows-msvc, arch: x64 }
-          - { target: aarch64-pc-windows-msvc, arch: arm64 }
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -30,35 +26,28 @@ jobs:
           $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           if ("release/v$ver" -ne "${{ github.ref_name }}") { throw "branch ${{ github.ref_name }} does not match Cargo version $ver" }
       - name: Install Rust target
-        run: rustup target add ${{ matrix.target }}
+        run: rustup target add x86_64-pc-windows-msvc
       - name: Test
-        if: matrix.arch == 'x64'
-        run: cargo test --workspace --locked --target ${{ matrix.target }}
+        run: cargo test --workspace --locked --target x86_64-pc-windows-msvc
       - name: Build
-        run: cargo build --workspace --release --locked --target ${{ matrix.target }}
+        run: cargo build --workspace --release --locked --target x86_64-pc-windows-msvc
       - name: Install packaging tools
-        if: matrix.arch == 'x64'
         shell: pwsh
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
-          dotnet tool install --global wix --version 5.0.2
       - name: Package
         shell: pwsh
         run: |
-          $extra = @{}
-          if ('${{ matrix.arch }}' -eq 'x64') { $extra.Installers = $true }
-          pwsh -NoProfile -File packaging/package.ps1 -Target ${{ matrix.target }} -Arch ${{ matrix.arch }} -OutDir dist @extra
+          pwsh -NoProfile -File packaging/package.ps1 -Target x86_64-pc-windows-msvc -Arch x64 -OutDir dist -Installers
           if ($LASTEXITCODE -ne 0) { throw "packaging failed" }
-          Rename-Item dist/SHA256SUMS.txt "SHA256SUMS-${{ matrix.arch }}.txt"
       - name: Upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: assets-${{ matrix.arch }}
+          name: assets-x64
           path: |
             dist/*.zip
             dist/*.exe
-            dist/*.msi
-            dist/SHA256SUMS-*.txt
+            dist/SHA256SUMS.txt
 
   publish:
     needs: build
@@ -82,8 +71,6 @@ jobs:
             $0 ~ "^## \\[" ver "\\]" {on=1; print; next}
             on && /^## \[/ {exit}
             on {print}' CHANGELOG.md > notes.md
-          cat dist/SHA256SUMS-*.txt | sort -k2 > dist/SHA256SUMS.txt
-          rm dist/SHA256SUMS-*.txt
           pre=()
           case "$v" in v0.*) pre+=(--prerelease);; esac
           gh release create "$v" --target "$GITHUB_SHA" --title "IsoFoundry $v" --notes-file notes.md "${pre[@]}" dist/*

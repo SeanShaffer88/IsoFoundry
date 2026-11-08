@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Changed
+- Release shape: releases now carry only the x64 Setup.exe installer and the x64 Portable.zip, plus SHA256SUMS.txt — the WiX MSI, the ARM64 builds and the PortableApps.com zips are dropped (one installer and one portable zip per release). The release workflow builds a single x64 leg, and `packaging/package.ps1` no longer produces the removed assets. The published v0.1.0 assets were pruned to the same pair.
+
 ### Added
 - Image reading (`if-image`): ISO 9660 with Rock Ridge names, Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalog (BIOS and UEFI entries). Extraction keeps nothing half-written on cancel and renames names Windows cannot store.
 - Hashing (`if-hash`): CRC32, MD5, SHA-1 and SHA-256 in one pass; Logiqx/redump `.dat` writing and reading.

@@ -3,7 +3,7 @@ name: CI
 # Builds, lints and tests on Windows with MSVC and a static CRT (D-030,
 # D-043). x64 runs the tests; ARM64 is cross-built (no ARM64 runner tests).
 # Each build packages the release assets (packaging/package.ps1), installs and
-# uninstalls the x64 Setup.exe and MSI, and uploads everything for testing.
+# uninstalls the x64 Setup.exe, and uploads everything for testing.
 
 on:
   push:
@@ -88,7 +88,6 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
-          dotnet tool install --global wix --version 5.0.2
       - name: Package
         shell: pwsh
         run: |
@@ -108,14 +107,7 @@ jobs:
           if ($v -notmatch '^IsoFoundry ') { throw "installed per-user build did not run: $v" }
           $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($u.ExitCode -ne 0 -or (Test-Path "$dir\isofoundry.exe")) { throw "uninstall failed" }
-          $msi = Get-ChildItem dist/*-Setup.msi | Select-Object -First 1
-          $m = Start-Process msiexec.exe -ArgumentList '/i', "`"$($msi.FullName)`"", '/qn', '/norestart' -Wait -PassThru
-          if ($m.ExitCode -ne 0) { throw "MSI install exit $($m.ExitCode)" }
-          $v = & "$env:ProgramFiles\IsoFoundry\isofoundry.com" --version
-          if ($v -notmatch '^IsoFoundry ') { throw "MSI build did not run: $v" }
-          $m = Start-Process msiexec.exe -ArgumentList '/x', "`"$($msi.FullName)`"", '/qn', '/norestart' -Wait -PassThru
-          if ($m.ExitCode -ne 0 -or (Test-Path "$env:ProgramFiles\IsoFoundry\isofoundry.exe")) { throw "MSI uninstall failed" }
-          Write-Host "Setup.exe and MSI install, run and uninstall OK"
+          Write-Host "Setup.exe install, run and uninstall OK"
       - name: Upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -123,6 +115,5 @@ jobs:
           path: |
             dist/*.zip
             dist/*.exe
-            dist/*.msi
             dist/SHA256SUMS.txt
           retention-days: 14

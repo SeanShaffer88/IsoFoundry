@@ -30,9 +30,8 @@ Kept current every release. Items move out only with evidence.
 - No task runs yet: every task button and CLI subcommand reports the milestone it ships in.
 - Verified only under Wine and in CI so far, not on a real Windows desktop (D-047).
 - The menu bar uses the light system style; Windows has no documented dark menu bar.
-- The PortableApps.com package is a zip in PortableApps.com Format, not a `.paf.exe` installer: extract `IsoFoundryPortable` into your PortableApps folder.
 - Installers and executables are not code-signed; Windows SmartScreen may warn on first run.
-- Setup.exe and the MSI are x64 only; ARM64 ships as portable zips.
+- Releases ship x64 only, as one Setup.exe installer and one portable zip (the MSI, ARM64 and PortableApps.com assets were dropped after 0.1.0).
 
 ## Platform
 - Windows 10 22H2 and 11 only. ARM64 builds are produced but **Unverified** until run on ARM64 hardware.
