@@ -363,14 +363,3 @@ pub fn fake_source_audio() -> FakeDrive {
     d.load_audio(tracks);
     d
 }
-
-#[cfg(test)]
-mod enumerate_probe {
-    #[test]
-    fn enumerate_returns_cleanly() {
-        // The CI crash probe (RC): enumeration must return, with any
-        // result, and never take the process down.
-        let drives = super::enumerate();
-        eprintln!("enumerate probe: {} drive(s)", drives.len());
-    }
-}

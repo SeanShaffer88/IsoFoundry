@@ -253,21 +253,13 @@ unsafe fn get_i32(p: *mut c_void, idx: usize) -> Result<i32> {
 /// Lists recorders as plain data (all COM objects are released
 /// before returning, so this is callable from any thread).
 pub fn enumerate() -> Result<Vec<DriveInfo>> {
-    #[cfg(test)]
-    eprintln!("probe: enumerate start");
     init_com()?;
-    #[cfg(test)]
-    eprintln!("probe: com initialized");
     unsafe {
         let master = create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2)?;
-        #[cfg(test)]
-        eprintln!("probe: disc master created");
         type Count = unsafe extern "system" fn(*mut c_void, *mut i32) -> HResult;
         let count_f: Count = std::mem::transmute_copy(&*vtbl(master.get()).add(slot::master::COUNT));
         let mut count: i32 = 0;
         hr("counting disc recorders", count_f(master.get(), &mut count))?;
-        #[cfg(test)]
-        eprintln!("probe: recorder count = {count}");
         let mut out = Vec::new();
         for i in 0..count {
             type Item = unsafe extern "system" fn(*mut c_void, i32, *mut *mut u16) -> HResult;
@@ -715,4 +707,43 @@ unsafe fn stream_on_file(path: &Path) -> Result<ComPtr> {
         return err(format!("opening {} returned no stream", path.display()));
     }
     Ok(ComPtr(stream))
+}
+
+#[cfg(test)]
+mod probe_tests {
+    //! Staged probes for the CI access violation (RC): each stage
+    //! goes one call deeper into the enumeration path. Whichever
+    //! stages print `ok` in CI bound where the crash lives.
+    use super::*;
+
+    #[test]
+    fn stage1_com_init() {
+        init_com().unwrap();
+    }
+
+    #[test]
+    fn stage2_create_master() {
+        init_com().unwrap();
+        let master = unsafe { create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2) }.unwrap();
+        drop(master);
+    }
+
+    #[test]
+    fn stage3_count_recorders() {
+        init_com().unwrap();
+        unsafe {
+            let master = create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2).unwrap();
+            type Count = unsafe extern "system" fn(*mut c_void, *mut i32) -> HResult;
+            let count_f: Count = std::mem::transmute_copy(&*vtbl(master.get()).add(slot::master::COUNT));
+            let mut count: i32 = -1;
+            hr("counting disc recorders", count_f(master.get(), &mut count)).unwrap();
+            assert!(count >= 0);
+        }
+    }
+
+    #[test]
+    fn stage4_full_enumerate() {
+        let drives = enumerate().unwrap();
+        assert!(drives.len() < 64);
+    }
 }
