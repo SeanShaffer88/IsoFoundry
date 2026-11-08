@@ -308,6 +308,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "if-drive"
+version = "0.4.0"
+dependencies = [
+ "if-core",
+ "if-hash",
+ "windows-sys",
+]
+
+[[package]]
 name = "if-hash"
 version = "0.4.0"
 dependencies = [
@@ -341,6 +350,7 @@ version = "0.4.0"
 dependencies = [
  "if-audio",
  "if-core",
+ "if-drive",
  "if-hash",
  "if-image",
  "serde_json",

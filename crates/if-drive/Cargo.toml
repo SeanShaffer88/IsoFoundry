@@ -1,0 +1,18 @@
+[package]
+name = "if-drive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Optical drive layer for IsoFoundry: IMAPI2 backend on Windows, plus a fake drive used for development and tests."
+
+[dependencies]
+if-core = { path = "../if-core" }
+if-hash = { path = "../if-hash" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_UI_Shell",
+] }

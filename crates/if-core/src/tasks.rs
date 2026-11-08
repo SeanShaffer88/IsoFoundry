@@ -70,11 +70,17 @@ pub struct Task {
 pub const AVAILABLE: &[&str] = &[
     "bootable-usb",
     "browse-image",
+    "burn-files",
+    "burn-image",
+    "burn-mp3",
+    "burn-video",
     "checksum",
     "convert-audio",
     "convert-image",
     "create-image",
+    "drive-info",
     "edit-image",
+    "erase",
     "install-windows-usb",
 ];
 

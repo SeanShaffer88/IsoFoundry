@@ -86,6 +86,14 @@ USB commands (administrator rights via the helper; disk targets erase the disk):
   windows-to-usb IMAGE --disk N [--layout mbr|gpt|gpt-ntfs] [--yes]\n\
                        Windows installer stick (Microsoft's own boot files;\n\
                        gpt-ntfs for images whose install.wim is over 4 GB)\n\n\
+Burning commands:\n\
+  burn-image IMG [--drive E:|--fake] [--simulate] [--append] [--close] [--speed N] [--yes]\n\
+  burn-files DIR [--label NAME]   Burn a folder as a data disc\n\
+  burn-mp3 DIR                     Burn an MP3 disc (playlist generated)\n\
+  burn-video DIR                   Burn a DVD-video folder (VIDEO_TS)\n\
+  erase [--full]                   Erase a rewritable disc\n\
+  info                             List drives and inserted media\n\
+\n\
 Audio commands:\n\
   convert-audio FILES... --to wav|flac|mp3|aac [--out DIR] [--bitrate N] [--replaygain] [--apply-gain]\n\
                        Convert audio files in a batch; tags are carried across\n\n\
@@ -319,6 +327,12 @@ pub fn run(
         | "edit-image" => crate::cli_image::run(cmd, tail, &g, &mut o, log),
         "mount" | "unmount" => crate::cli_mount::run(cmd, tail, dirs, &mut o),
         "convert-audio" => crate::cli_audio::run(cmd, tail, &g, &mut o),
+        "burn-image" => crate::cli_burn::run_burn_image(tail, &g, &mut o),
+        "burn-files" => crate::cli_burn::run_burn_files(tail, &g, &mut o),
+        "burn-mp3" => crate::cli_burn::run_burn_mp3(tail, &g, &mut o),
+        "burn-video" => crate::cli_burn::run_burn_video(tail, &g, &mut o),
+        "erase" => crate::cli_burn::run_erase(tail, &g, &mut o),
+        "info" => crate::cli_burn::run_info(tail, &g, &mut o),
         "usb" | "windows-to-usb" => crate::cli_usb::run(cmd, tail, &g, platform, &mut o),
         other => match tasks::by_cli(other) {
             Some(t) => {
@@ -449,11 +463,11 @@ mod tests {
 
     #[test]
     fn task_commands_report_not_implemented() {
-        let (code, out, _) = call(&["burn-image", "--json"], &dirs());
+        let (code, out, _) = call(&["burn-audio", "--json"], &dirs());
         assert_eq!(code, 40);
         let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
         assert_eq!(v["exit"], "not_implemented");
-        assert!(v["message"].as_str().unwrap().contains("0.5"));
+        assert!(v["message"].as_str().unwrap().contains("0.6"));
     }
 
     #[test]
