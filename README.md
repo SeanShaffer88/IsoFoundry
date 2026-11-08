@@ -11,8 +11,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 ## Status
 
 - **0.2.0 (released)** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the five image tasks, and the same jobs run from the command line. The task windows open and render correctly on a real desktop (checked from the owner's captures, 2026-11-07); a full job run in each window is still to be confirmed.
-- **0.4.0 (in development)** — M3 audio conversion: batch-convert audio files (decode anything common; encode WAV, FLAC, MP3 and AAC/M4A), with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation and is **Unverified** on real hardware.
-- **0.3.0 (built on main, not yet released)** — M2 USB: Create bootable USB and Install Windows to USB, in the task windows and from the command line (`usb`, `windows-to-usb`). Tested end-to-end against disk-image files; writing to a physical disk and booting from the result are still to be confirmed on real hardware.
+- **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB and Install Windows to USB (`usb`, `windows-to-usb`; tested end-to-end against disk-image files — writing to a physical disk and booting from it are still to be confirmed on real hardware), and batch audio conversion with tags carried across and ReplayGain measurement. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.1.0** — the M0 shell: main window, command line and elevated helper.
 - **Planned** — disc burning (0.5.0), disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
 
@@ -40,14 +39,14 @@ These jobs run from the task windows and the command line:
 
 Formats: ISO 9660 (with Rock Ridge names), Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalogs (BIOS and UEFI). CD images: BIN/CUE (single and multi-file; MODE1, MODE2 and audio tracks), CloneCD CCD/IMG/SUB, sheetless raw `.bin`/`.img`, and MAME CHD v5 — reading `zlib`/`cdzl` discs and writing CD (`cdzl`) and DVD (`zlib`) CHDs whose SHA-1s match chdman 0.264 byte for byte on the test images. Nero NRG and Alcohol MDS/MDF are read-only and marked unverified. Raw sector ECC/EDC generation and checks, and Q-subchannel generation, are included. Known format limits are listed in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
-## USB tools (in development, 0.3.0)
+## USB tools
 
 - **`bootable-usb`** — turn an ISO into a bootable USB drive: partition it (MBR or GPT), format FAT32 and copy the image's files, or copy the image byte-for-byte in raw mode with an optional SHA-256 verify afterwards. `usb read` copies a drive back to an image file.
 - **`install-windows-usb`** — the same write with Windows installer layouts: MBR+FAT32 (default), GPT+FAT32, or GPT+NTFS for install images over the FAT32 file limit. The boot files are Microsoft's own, copied unchanged from the ISO, so Secure Boot keeps working.
 
 Writing is guarded: the system disk, the boot/pagefile disk and fixed disks are refused, and a target with mounted volumes or over 64 GB needs a typed ERASE confirmation. The engine is tested against disk-image files (the VHDX route); physical disks are **Unverified** until exercised on real hardware.
 
-## Audio tools (in development, 0.4.0)
+## Audio tools
 
 - **`convert-audio`** — batch-convert audio files between formats, from the task window or the command line. Decoding covers WAV, FLAC, MP3, Ogg Vorbis, Opus and AAC/M4A; encoding covers WAV, FLAC, MP3 (through `libmp3lame.dll`, loaded at runtime — never bundled) and AAC/M4A (through Windows Media Foundation). Tags are carried across, and ReplayGain can be measured into the output's tags or baked into the samples. Opus and Ogg Vorbis *encoding* is not offered yet — there is no permissive pure-Rust encoder for either; see the limitations.
 
@@ -179,8 +178,8 @@ All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task w
 |---|---|---|
 | M0 Shell | 0.1.0 ✅ | Window, task grid, CLI skeleton, settings, logs, elevated helper, packaging |
 | M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — released in 0.2.0 |
-| M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image — built on main, ships as 0.3.0 |
-| M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain | — built on main, ships as 0.4.0
+| M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
+| M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
 | M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn, multi-drive, job queue |
 | M5 Disc & ripping (MMC) | 0.6.0 | Disc → image (raw + subchannel), disc → disc, secure audio ripping, audio CD burning, surface/quality scans, recovery |
 | M6 Integration | 0.7.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check |
