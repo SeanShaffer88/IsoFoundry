@@ -26,9 +26,8 @@ Kept current every release. Items move out only with evidence.
 - Editing rewrites the image as ISO 9660 + Joliet + UDF 1.02. Hidden flags, Rock Ridge permissions and UDF 2.x extras of the source are not kept. Images that boot with floppy or hard-disk emulation can't be edited yet. Boot images that are also visible files are stored twice.
 - Mounting uses `AttachVirtualDisk`; whether it works without administrator rights depends on Windows policy and is untested outside CI (where the account is an administrator). A mount lasts until `unmount` or restart.
 
-## M0 shell
-- No task runs yet: every task button and CLI subcommand reports the milestone it ships in.
-- Verified only under Wine and in CI so far, not on a real Windows desktop (D-047).
+## Shell and packaging
+- Parts of the program are still verified only under Wine and in CI so far, not on a real Windows desktop (D-047); AUDIT.md tracks which parts.
 - The menu bar uses the light system style; Windows has no documented dark menu bar.
 - Installers and executables are not code-signed; Windows SmartScreen may warn on first run.
 - Releases ship x64 only, as one Setup.exe installer and one portable zip (the MSI, ARM64 and PortableApps.com assets were dropped after 0.1.0).

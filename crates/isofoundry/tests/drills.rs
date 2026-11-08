@@ -226,3 +226,36 @@ fn backup_rejects_an_empty_source() {
     );
     assert!(r.is_err());
 }
+
+#[test]
+fn backup_restore_rejects_a_corrupt_catalog() {
+    let dir = tmp("badcat");
+    let src = dir.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::write(src.join("a.txt"), b"data").unwrap();
+    let staged = isofoundry::backup::create_backup(
+        &src,
+        "drill",
+        4 * 1024 * 1024,
+        &dir.join("work"),
+        &Progress::default(),
+        &CancelToken::new(),
+    )
+    .unwrap();
+    let catalog = staged.span_dirs[0].join("ISOFBACKUP").join("CATALOG.JSON");
+    std::fs::write(&catalog, b"{ this is not the catalog").unwrap();
+    let dest = dir.join("out");
+    std::fs::create_dir_all(&dest).unwrap();
+    let r = isofoundry::backup::restore(&staged.span_dirs, &dest, &dir.join("rtmp"), &Progress::default(), &CancelToken::new());
+    assert!(r.is_err(), "a corrupt catalog must stop the restore, not guess");
+}
+
+#[test]
+fn a_corrupt_settings_file_loads_defaults_with_a_note() {
+    let dir = tmp("settings");
+    let path = dir.join("settings.toml");
+    std::fs::write(&path, b"this is = = not valid toml [[[ ").unwrap();
+    let loaded = if_core::settings::load(&path);
+    assert_eq!(loaded.settings, if_core::settings::Settings::default());
+    assert!(loaded.note.is_some(), "the user-facing log gets a note");
+}
