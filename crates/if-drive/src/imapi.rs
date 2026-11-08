@@ -253,13 +253,21 @@ unsafe fn get_i32(p: *mut c_void, idx: usize) -> Result<i32> {
 /// Lists recorders as plain data (all COM objects are released
 /// before returning, so this is callable from any thread).
 pub fn enumerate() -> Result<Vec<DriveInfo>> {
+    #[cfg(test)]
+    eprintln!("probe: enumerate start");
     init_com()?;
+    #[cfg(test)]
+    eprintln!("probe: com initialized");
     unsafe {
         let master = create(&CLSID_DISC_MASTER2, &IID_DISC_MASTER2)?;
+        #[cfg(test)]
+        eprintln!("probe: disc master created");
         type Count = unsafe extern "system" fn(*mut c_void, *mut i32) -> HResult;
         let count_f: Count = std::mem::transmute_copy(&*vtbl(master.get()).add(slot::master::COUNT));
         let mut count: i32 = 0;
         hr("counting disc recorders", count_f(master.get(), &mut count))?;
+        #[cfg(test)]
+        eprintln!("probe: recorder count = {count}");
         let mut out = Vec::new();
         for i in 0..count {
             type Item = unsafe extern "system" fn(*mut c_void, i32, *mut *mut u16) -> HResult;

@@ -399,20 +399,17 @@ pub fn log_tail(dirs: &if_core::paths::DataDirs, log: &if_core::log::Logger) -> 
 }
 
 pub fn build_report(platform: &dyn Platform, tail: Vec<String>) -> if_core::report::DriveReport {
-    let drives: Vec<if_core::report::DriveEntry> = if_drive::enumerate()
-        .iter()
-        .map(|d| if_core::report::DriveEntry {
-            letter: d.letter.map(|c| c.to_string()).unwrap_or_default(),
-            vendor: d.vendor.trim().to_string(),
-            model: d.product.trim().to_string(),
-            firmware: d.revision.trim().to_string(),
-            serial: None,
-        })
-        .collect();
-    let probe =
-        if drives.is_empty() { "no optical drives found" } else { "optical drives enumerated via the drive layer" };
-    if_core::report::DriveReport::new(platform.os_description(), drives, probe, tail)
-        .redacted(platform.user_profile().as_deref())
+    // No live drive enumeration here: the report is written from
+    // contexts where probing hardware is not always safe (it is a
+    // support file, often produced by scripts). `info` is the
+    // command that lists drives.
+    if_core::report::DriveReport::new(
+        platform.os_description(),
+        Vec::new(),
+        "drive list not included in the report — run `isofoundry info` for live drives",
+        tail,
+    )
+    .redacted(platform.user_profile().as_deref())
 }
 
 /// Directive V2.0 §19: remove everything IsoFoundry ever wrote. Today that
