@@ -979,6 +979,8 @@ fn run_action(hwnd: HWND, action: Action) {
                 "convert-image" => super::tasks::convert::open(hwnd),
                 "create-image" => super::tasks::create::open(hwnd),
                 "edit-image" => super::tasks::edit::open(hwnd),
+                "bootable-usb" => super::tasks::bootusb::open(hwnd),
+                "install-windows-usb" => super::tasks::winusb::open(hwnd),
                 _ => {}
             }
         }

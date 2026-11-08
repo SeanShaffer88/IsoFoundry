@@ -1,0 +1,13 @@
+[package]
+name = "usbwriter"
+description = "IsoFoundry USB writer: partition, format and write bootable USB targets safely"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+if-core = { path = "../if-core" }
+if-image = { path = "../if-image" }
+if-hash = { path = "../if-hash" }

@@ -20,6 +20,20 @@ pub trait Platform {
     fn os_description(&self) -> String;
     fn user_profile(&self) -> Option<String>;
     fn helper_check(&self, elevated: bool) -> Result<HelperInfo, (Exit, String)>;
+
+    /// Physical disks for the USB jobs (through the elevated helper).
+    fn usb_list(&self) -> Result<Vec<usbwriter::device::DiskInfo>, (Exit, String)> {
+        Err((Exit::Generic, "USB operations are not available on this platform".into()))
+    }
+
+    /// Runs one USB job on a physical disk (through the elevated helper).
+    fn usb_job(
+        &self,
+        _job: &if_core::ipc::UsbJob,
+        _progress: &if_core::job::Progress,
+    ) -> Result<(usize, u64, Vec<String>), (Exit, String)> {
+        Err((Exit::Generic, "USB operations are not available on this platform".into()))
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -62,6 +76,16 @@ Commands:\n\
                        (--dry-run lists them; --yes deletes)\n\
   help, --help         Show this text\n\
   version, --version   Show the version\n\n\
+USB commands (administrator rights via the helper; disk targets erase the disk):\n\
+  usb list             List physical disks\n\
+  usb write IMAGE --disk N [--mode files|raw] [--scheme mbr|gpt] [--verify]\n\
+                       Make a bootable stick from an ISO (files: copy its tree;\n\
+                       raw: copy the image byte for byte). --yes confirms the erase\n\
+  usb read --disk N --out FILE [--bytes N]   Copy a disk back to an image file\n\
+  usb write IMAGE --file STICK.img --dev-allow-vdisk   Same, onto a disk-image file\n\
+  windows-to-usb IMAGE --disk N [--layout mbr|gpt|gpt-ntfs] [--yes]\n\
+                       Windows installer stick (Microsoft's own boot files;\n\
+                       gpt-ntfs for images whose install.wim is over 4 GB)\n\n\
 Image commands:\n{}{}\n\
 Task commands not available yet (exit code 40 until their version ships):\n",
         if_core::APP_VERSION,
@@ -291,6 +315,7 @@ pub fn run(
         "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" | "convert-image"
         | "edit-image" => crate::cli_image::run(cmd, tail, &g, &mut o, log),
         "mount" | "unmount" => crate::cli_mount::run(cmd, tail, dirs, &mut o),
+        "usb" | "windows-to-usb" => crate::cli_usb::run(cmd, tail, &g, platform, &mut o),
         other => match tasks::by_cli(other) {
             Some(t) => {
                 let msg = format!(

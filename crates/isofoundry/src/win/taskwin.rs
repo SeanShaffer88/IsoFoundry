@@ -59,6 +59,11 @@ pub struct JobShared {
 }
 
 impl JobShared {
+    /// The shared progress counters (clone; the atomics are shared).
+    pub fn progress(&self) -> Progress {
+        self.progress.clone()
+    }
+
     pub(crate) fn new() -> Arc<JobShared> {
         Arc::new(JobShared {
             progress: Progress::default(),

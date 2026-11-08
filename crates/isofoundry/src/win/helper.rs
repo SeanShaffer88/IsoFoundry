@@ -63,6 +63,52 @@ pub fn check(elevated: bool) -> Result<HelperInfo, Fail> {
     Ok(HelperInfo { version, elevated: s.hello.elevated, pid: s.pid })
 }
 
+/// Lists physical disks through an elevated helper session.
+pub fn usb_list() -> Result<Vec<usbwriter::device::DiskInfo>, Fail> {
+    let mut s = Session::start(true)?;
+    let disks = match s.request(&Request::UsbList)? {
+        Response::UsbDisks { disks } => disks,
+        other => return Err(fail(Exit::Generic, format!("unexpected reply: {other:?}"))),
+    };
+    let _ = s.request(&Request::Shutdown);
+    Ok(disks.iter().map(disk_from_dto).collect())
+}
+
+/// Runs one USB job in an elevated helper session, reporting progress.
+pub fn usb_job(job: &ipc::UsbJob, on_progress: impl FnMut(u64, u64)) -> Result<(usize, u64, Vec<String>), Fail> {
+    let mut s = Session::start(true)?;
+    let resp = s.request_streaming(&Request::UsbJob(job.clone()), on_progress)?;
+    let _ = s.request(&Request::Shutdown);
+    match resp {
+        Response::UsbDone { files, bytes, notes } => Ok((files, bytes, notes)),
+        other => Err(fail(Exit::Generic, format!("unexpected reply: {other:?}"))),
+    }
+}
+
+/// Converts the wire DTO back into the engine's disk description.
+pub fn disk_from_dto(d: &ipc::DiskDto) -> usbwriter::device::DiskInfo {
+    use usbwriter::device::{Bus, DiskInfo};
+    DiskInfo {
+        number: d.number,
+        model: d.model.clone(),
+        size_bytes: d.size_bytes,
+        bus: match d.bus.as_str() {
+            "usb" => Bus::Usb,
+            "nvme" => Bus::Nvme,
+            "sata" => Bus::Sata,
+            "scsi" => Bus::Scsi,
+            "virtual" => Bus::Virtual,
+            _ => Bus::Other,
+        },
+        removable: d.removable,
+        is_system: d.is_system,
+        holds_boot: d.holds_boot,
+        holds_pagefile: d.holds_pagefile,
+        volume_labels: d.volume_labels.clone(),
+        is_file_target: false,
+    }
+}
+
 pub struct Session {
     pipe: Pipe,
     process: OwnedHandle,
@@ -118,6 +164,23 @@ impl Session {
             return Err(fail(Exit::Generic, format!("helper error: {message}")));
         }
         Ok(resp)
+    }
+
+    /// Like `request`, but consumes streamed Progress frames first.
+    pub fn request_streaming(
+        &mut self,
+        req: &Request,
+        mut on_progress: impl FnMut(u64, u64),
+    ) -> Result<Response, Fail> {
+        ipc::write_frame(&mut self.pipe, req).map_err(|e| fail(Exit::Generic, e.to_string()))?;
+        loop {
+            let resp: Response = ipc::read_frame(&mut self.pipe).map_err(|e| fail(Exit::Generic, e.to_string()))?;
+            match resp {
+                Response::Progress { done, total } => on_progress(done, total),
+                Response::Error { message, .. } => return Err(fail(Exit::Generic, format!("helper error: {message}"))),
+                other => return Ok(other),
+            }
+        }
     }
 
     fn call(&mut self, req: &Request, ok: impl Fn(&Response) -> bool) -> Result<(), Fail> {

@@ -10,7 +10,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io::{Read, Write};
 
-pub const PROTOCOL: u32 = 1;
+pub const PROTOCOL: u32 = 2;
 pub const MAX_FRAME: usize = 64 * 1024;
 pub const NONCE_BYTES: usize = 32;
 
@@ -21,6 +21,47 @@ pub enum Request {
     Ping,
     Version,
     Shutdown,
+    /// Enumerate physical disks for the USB jobs.
+    UsbList,
+    /// Run one USB job on a physical disk (helper streams
+    /// [`Response::Progress`] frames, then a final response).
+    UsbJob(UsbJob),
+}
+
+/// One USB job for the helper. Image paths are absolute paths the user
+/// picked in the app; the helper re-checks the target with the safety
+/// assessment before writing anything.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsbJob {
+    pub disk_number: u32,
+    pub kind: UsbJobKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum UsbJobKind {
+    /// Partition + format + copy an ISO's file tree.
+    Files { image: String, scheme: String, windows_installer: bool },
+    /// Raw byte-for-byte image write.
+    RawWrite { image: String, verify: bool },
+    /// Read the disk back into an image file.
+    ReadImage { out: String, limit_bytes: Option<u64> },
+}
+
+/// A disk as the helper reports it (mirrors usbwriter's DiskInfo; kept
+/// in if-core so the app never depends on the helper's internals).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiskDto {
+    pub number: u32,
+    pub model: String,
+    pub size_bytes: u64,
+    /// "usb" | "nvme" | "sata" | "scsi" | "virtual" | "other"
+    pub bus: String,
+    pub removable: bool,
+    pub is_system: bool,
+    pub holds_boot: bool,
+    pub holds_pagefile: bool,
+    pub volume_labels: Vec<String>,
 }
 
 /// The helper's first message, proving it was started by this app.
@@ -36,9 +77,27 @@ pub struct Hello {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Response {
     Pong,
-    Version { version: String },
+    Version {
+        version: String,
+    },
     Bye,
-    Error { code: u8, message: String },
+    Error {
+        code: u8,
+        message: String,
+    },
+    UsbDisks {
+        disks: Vec<DiskDto>,
+    },
+    /// Streamed while a UsbJob runs; never the final frame.
+    Progress {
+        done: u64,
+        total: u64,
+    },
+    UsbDone {
+        files: usize,
+        bytes: u64,
+        notes: Vec<String>,
+    },
 }
 
 #[derive(Debug)]
