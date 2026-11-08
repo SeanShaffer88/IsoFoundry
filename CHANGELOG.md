@@ -2,9 +2,15 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.9.0] - 2026-11-08
 
-### Added — M6 integration: spanning backup, shell integration, opt-in online lookups (for 0.6.0)
+### Added — RC pass: audit, failure drills, accessibility, measured budgets
+
+- **Failure-drill test suite**: hostile media (oversize images, non-blank discs, failed verifies), damaged discs (zero-filled bad sectors, surface damage maps), tampered and incomplete backups, malformed image files and cancelled jobs — all must fail cleanly, and now do so under test.
+- **Multi-drive burn** from the command line: the burn commands accept `--all-drives` and write the same source to every drive in turn, reporting each drive's result.
+- **Measured performance budgets** (docs/BENCHMARK.md), an **accessibility statement** (docs/ACCESSIBILITY.md), a **capability matrix** (docs/PARITY.md) and a **quality scorecard** (QUALITY.md).
+
+### Added — M6 integration: spanning backup, shell integration, opt-in online lookups
 
 - **Spanning backup and restore** (`backup`, `backup-restore`, plus a task window with a restore variant). A folder is packed onto as many discs as it needs: files in name order, greedy packing, and any file larger than a span is split into `.ifpartNNN` chunks. The full plan is computed before the first disc is written, so an identical catalog (`ISOFBACKUP/CATALOG.JSON`, with a SHA-256 per file and per part) rides on every span next to a span marker. Backup writes one ISO per span (`--out-dir`), burns each span to a drive (prompting for the next blank), or rehearses against the simulated drive (`--fake`). Restore takes span folders or span ISOs in any order, names any missing span, joins split files and verifies every checksum.
 - **Completion actions that now actually fire**: the sound on finish (a setting since M0 that nothing consumed until now), an optional notification balloon, and an optional shutdown after a successful task (announced, 20-second grace, cancellable with `shutdown /a`). The backup command has `--shutdown-when-done` too.
@@ -14,6 +20,14 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - **Opt-in update check** (`check-update`, or on start from the Options menu): asks GitHub for the newest release and says so; off by default and never done silently — IsoFoundry still makes no network calls the user did not ask for.
 - **MusicBrainz disc lookup** (`rip --musicbrainz`, a checkbox in the Rip window, an Options-menu default): disc IDs (MusicBrainz and freedb/CDDB) are computed for every audio rip and written into the rip log along with the lookup page; with the opt-in lookup the matching release's track titles name the ripped files. Rips stay fully offline when it is off.
 - The M5 tasks now show as available in the task grid and `list` (they were built in 0.5.0 but still labelled as planned there, so the grid showed a "ships later" note instead of opening their windows; the command line was unaffected).
+
+### Fixed
+
+- Keyboard navigation (Tab, arrow keys, access keys) did not work inside task windows — only the main window processed them. It now works in every window.
+- The `report` command carried a stale note claiming drive probing still had to arrive; the note is corrected — the report points at `isofoundry info` for the live drive list.
+- Listing drives on Windows could crash the whole program: the disc-drive cleanup call dropped its object pointer. Fixed, and listing drives is now exercised by a test on every run.
+- `--help` printed an empty "not available yet" section once every task had shipped; the section only appears when it has entries.
+- The Create bootable USB variant menu pointed both variants at a "planned" notice: image → USB now opens the window that does it, and USB → image says plainly that it works from the command line today (`usb read`).
 
 ## [0.5.0] - 2026-11-08
 

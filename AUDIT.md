@@ -1,6 +1,6 @@
 # Audit
 
-Nothing is implemented yet, so nothing is verified. This file will list each feature as Verified, Partially verified or Unverified, with the evidence (tests, recorded runs, drive reports).
+Each feature is listed as Verified, Partially verified or Unverified, with the evidence (tests, recorded runs, drive reports). The table is rebuilt at every milestone; dated findings follow it.
 
 | Area | Status | Evidence |
 |---|---|---|
@@ -17,7 +17,31 @@ Nothing is implemented yet, so nothing is verified. This file will list each fea
 | Image editing | Partially verified | Tests: add/remove/rename/mkdir/label on UDF and CHD sources, boot entries kept (BIOS+UEFI images byte-identical); xorriso 1.5 reads the edited boot image, 2026-11-07 |
 | Mount / unmount | Partially verified | CI windows-latest: ISO and CHD (temp ISO) mount, file visible, unmount. Standard-user (non-admin) path untested |
 | NRG, MDS/MDF reading | Unverified | Written from format descriptions; no real images to test (A-7) |
-| Disc, image, audio and USB tasks | Not started | Ship from M1 (see [docs/roadmap.md](docs/roadmap.md)) |
+| USB tasks (M2) | Partially verified | Engine tested end-to-end against disk-image files (round trips, refusal rules); the elevated helper's physical-disk path and QEMU boot checks are Unverified |
+| Audio conversion (M3) | Partially verified | Decode/encode tests and measured reference tones; MP3 via a real `libmp3lame.dll` and the Media Foundation AAC path are Unverified on Windows |
+| Burning (M4) | Partially verified | Full flows against the simulated drive with digest verify; the IMAPI2 backend is Unverified on real hardware |
+| Rip and copy (M5) | Partially verified | Engines and the simulated read side under test (damage maps, secure-mode agreement); the SPTI/MMC read path is Unverified on a real drive |
+| Backup and shell integration (M6) | Partially verified | Spanning round trips incl. split files; tampered and incomplete backups fail under drill; WinHTTP, Explorer verbs, disc-insert actions and the announced shutdown are Unverified on Windows |
+| Failure drills (RC) | Verified | `crates/isofoundry/tests/drills.rs`, 13 drills in the workspace suite, 2026-11-08 |
+| Accessibility (RC) | Partially verified | Code-level pass (docs/ACCESSIBILITY.md); task-window keyboard navigation fixed; screen-reader and scaling checks owed from a real desktop |
+| Performance budgets (RC) | Partially verified | docs/BENCHMARK.md: image build and checksum measured inside budget; first-window and working-set figures owed from Windows |
+
+## 2026-11-08 — RC audit (0.9.0)
+
+**Scope:** the whole tree against the roadmap's claims, the public docs, and the "Planned audits" list this file carried (accessibility pass, perf budgets, packaging/signing review, dependency audit, parser robustness).
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| B-1 | README and roadmap credited M4 with "multi-drive burn" and a "job queue" that were never built. | Medium | Multi-drive burn delivered in the command line (`--all-drives`); the queue claim corrected to the parallel-task-window model (D-052). |
+| B-2 | The `report` command listed no drives and still said probing "arrives in M4". | Low | Fixed: the stale note is corrected; the report points at `isofoundry info` for the live drive list. |
+| B-10 | Listing drives crashed the process on Windows (CI access violation, found by the RC test runs): the hand-rolled COM Release call in the IMAPI backend never passed the object pointer, so it released through a garbage `this`. | High | Fixed: the pointer is passed; a regression test enumerates drives on every CI run. |
+| B-3 | `--help` printed an empty "not available yet" section once every task had shipped. | Low | Fixed: the section appears only when it has entries. |
+| B-4 | The bootable-USB variant menu showed a "planned for M2 (0.3)" notice for shipped work. | Low | Fixed: image → USB opens its window; USB → image points at the working `usb read` command. |
+| B-5 | Keyboard navigation (Tab, arrows, access keys) did not work inside task windows: dialog-message handling ran only for the main window. | Medium | Fixed: it runs for the window each message belongs to. |
+| B-6 | docs/LIMITATIONS.md still said "No task runs yet" (M0 text). | Low | Fixed: section rewritten to the current shell/packaging facts. |
+| B-7 | Packaging/signing review: per-user Inno Setup (`PrivilegesRequired=lowest`), uninstall cleanup present, SHA256SUMS.txt generated at packaging and re-verified by download on every release. No signing step exists — binaries are unsigned (no certificate), as stated in LIMITATIONS. | Low | No change; SmartScreen note already documented. |
+| B-8 | Dependency audit (`cargo audit` over the lockfile): could not be run for this pass — the audit tool would not install on the development VM (network transfer failures, twice). The lockfile's crates are the workspace's long-standing set; no new dependency was added by M6 or RC. | — | Owed: run `cargo audit` in the repo and record the result here. |
+| B-9 | Image parsers take malformed input without panicking (RC drills: empty, truncated, garbage and random files through open/walk). A dedicated fuzz campaign (cargo-fuzz over the ISO/UDF/CHD/CCD parsers) has not been run. | Medium | Drills in place; fuzz campaign still owed. |
 
 ## 2026-11-07 — M0 shell
 

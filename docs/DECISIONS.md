@@ -66,3 +66,16 @@ Format: `D-NNN — decision — why — status`. Newest at the bottom. Changing 
 **Auto-action opens, never starts.** Detection is exact (drive media snapshot compared on WM_DEVICECHANGE), but starting a rip/copy needs an output location, which is a user choice — so the action opens the right window. Recorded so nobody "fixes" it into unattended writes later.
 
 **Completion shutdown is the announced kind.** InitiateSystemShutdownEx with a message and 20 s grace (cancellable), never a forced immediate power-off.
+
+## D-052 — RC audit outcomes (2026-11-08)
+
+- M6 and the RC pass ship grouped as **0.9.0**; 0.6.0 is never
+  released separately (owner's call, fewer releases).
+- The roadmap's M4 "multi-drive burn" is delivered in the command
+  line (`--all-drives`), not as a window mode: multi-drive jobs
+  are scripted, sequential operations.
+- The roadmap's "job queue" is the parallel-task-window model:
+  each task window is an independent job with its own progress
+  and cancellation. No central queue is built for 1.0.
+- USB → image stays command-line only for 1.0; its grid variant
+  says so instead of showing a "planned" notice.

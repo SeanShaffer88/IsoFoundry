@@ -40,3 +40,17 @@ File paths above must be checked against the installed QEMU version.
 
 ## 5. Failure drills (RC)
 Crash mid-burn, power loss (VM), disk full during image build, locked volume, permission denied, corrupt image input, old settings schema, drive removed mid-job.
+
+## 5. Failure drills (RC)
+
+`crates/isofoundry/tests/drills.rs` runs the hostile cases against
+the simulated drive and the real engines: oversize and non-blank
+burns, a verify that must not pass, damaged-disc rips and surface
+scans, tampered and incomplete backups, a corrupt span catalog, a
+corrupt settings file, malformed image files and cancelled jobs.
+They run with the normal workspace test suite — first recorded run:
+the RC pass, 2026-11-08 (full workspace suite green).
+
+Still owed, because they need a real machine or a power cut:
+crash mid-burn, power loss during a job, a full disk during an
+image build, a locked volume, and the drive removed mid-job.

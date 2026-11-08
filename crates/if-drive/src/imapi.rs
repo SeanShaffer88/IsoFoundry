@@ -118,8 +118,11 @@ unsafe fn vtbl(p: *mut c_void) -> *const usize {
 }
 
 unsafe fn call<T>(p: *mut c_void, idx: usize) -> T {
-    let f: unsafe extern "system" fn() -> T = std::mem::transmute_copy(&*vtbl(p).add(idx));
-    f()
+    // Every v-table method takes the object pointer as its first
+    // argument — omitting it leaves the callee reading a garbage
+    // `this`, which faults intermittently depending on codegen.
+    let f: unsafe extern "system" fn(*mut c_void) -> T = std::mem::transmute_copy(&*vtbl(p).add(idx));
+    f(p)
 }
 
 fn hr(what: &str, code: HResult) -> Result<()> {
@@ -707,4 +710,18 @@ unsafe fn stream_on_file(path: &Path) -> Result<ComPtr> {
         return err(format!("opening {} returned no stream", path.display()));
     }
     Ok(ComPtr(stream))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression test: listing drives crashed the process on
+    /// Windows (access violation) because the COM Release call
+    /// never received its object pointer. Runs on every CI run.
+    #[test]
+    fn enumerate_returns_cleanly() {
+        let drives = enumerate().unwrap();
+        assert!(drives.len() < 64);
+    }
 }

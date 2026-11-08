@@ -26,9 +26,8 @@ Kept current every release. Items move out only with evidence.
 - Editing rewrites the image as ISO 9660 + Joliet + UDF 1.02. Hidden flags, Rock Ridge permissions and UDF 2.x extras of the source are not kept. Images that boot with floppy or hard-disk emulation can't be edited yet. Boot images that are also visible files are stored twice.
 - Mounting uses `AttachVirtualDisk`; whether it works without administrator rights depends on Windows policy and is untested outside CI (where the account is an administrator). A mount lasts until `unmount` or restart.
 
-## M0 shell
-- No task runs yet: every task button and CLI subcommand reports the milestone it ships in.
-- Verified only under Wine and in CI so far, not on a real Windows desktop (D-047).
+## Shell and packaging
+- Parts of the program are still verified only under Wine and in CI so far, not on a real Windows desktop (D-047); AUDIT.md tracks which parts.
 - The menu bar uses the light system style; Windows has no documented dark menu bar.
 - Installers and executables are not code-signed; Windows SmartScreen may warn on first run.
 - Releases ship x64 only, as one Setup.exe installer and one portable zip (the MSI, ARM64 and PortableApps.com assets were dropped after 0.1.0).
@@ -64,6 +63,13 @@ Kept current every release. Items move out only with evidence.
 - **Explorer verbs** run the command-line operations (Checksum, Image info) in a console window that stays open, so the result can be read. They are per-user; other Windows accounts do not see them.
 - **The update check and MusicBrainz lookup are the only network calls in the program**, both opt-in, both plain HTTPS reads with no account and no data sent beyond the disc ID (MusicBrainz) or the request itself. MusicBrainz answers depend on its community database: an unlisted CD rips with the names from the disc, and the lookup is simply noted in the log.
 - **The finish shutdown** uses Windows' announced shutdown (20-second grace, a message on screen, `shutdown /a` cancels). If another program blocks the shutdown, Windows says so; IsoFoundry does not force it.
+
+## Release candidate pass (RC)
+
+- Several jobs at once means several task windows; there is no
+  central job queue.
+- Copying a USB stick to an image has no window yet — it works
+  from the command line (`usb read`).
 
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
