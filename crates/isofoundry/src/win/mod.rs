@@ -2,12 +2,15 @@
 //! and the helper launcher (D-014).
 
 pub mod console;
+pub mod finish;
 pub mod gui;
 pub mod helper;
+pub mod http;
 pub mod mount;
 pub mod tasks;
 pub mod taskwin;
 pub mod util;
+pub mod verbs;
 
 use crate::cli::{HelperInfo, Platform};
 use if_core::error::Exit;

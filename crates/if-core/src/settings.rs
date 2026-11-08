@@ -16,6 +16,23 @@ pub enum LogLevel {
     Debug,
 }
 
+/// What to do when a new disc appears in a drive (M6 auto-action).
+/// Off unless the user turns it on; when on, the matching task window
+/// opens — the job itself still starts with one click, because its
+/// output location is a per-job choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AutoAction {
+    #[default]
+    Off,
+    /// Data discs open Copy disc to image.
+    Image,
+    /// Audio CDs open Rip audio CD.
+    Rip,
+    /// Both of the above, routed by disc type.
+    Both,
+}
+
 /// Last main-window placement in physical pixels. Validated against the
 /// connected monitors before use (Directive V2.0 viewport rule).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,6 +64,21 @@ pub struct Settings {
     pub follow_windows_text_size: bool,
     /// Play the system sound when a task finishes.
     pub sound_on_finish: bool,
+    /// Show a notification balloon when a task finishes (M6).
+    pub toast_on_finish: bool,
+    /// Shut the computer down after a task finishes successfully (M6).
+    /// Off by default; the shutdown is announced and can be cancelled
+    /// with `shutdown /a`.
+    pub shutdown_when_done: bool,
+    /// What to open when a new disc is inserted (M6).
+    pub auto_action: AutoAction,
+    /// Check GitHub for a newer IsoFoundry on start (M6). Off by
+    /// default — IsoFoundry makes no network calls unless the user
+    /// opts in here or runs `check-update` / a MusicBrainz lookup.
+    pub check_updates: bool,
+    /// Look audio CDs up on MusicBrainz when ripping (M6, opt-in
+    /// online feature; rips work fully offline without it).
+    pub musicbrainz_lookup: bool,
     pub log_level: LogLevel,
     /// UI language (BCP 47). Only "en-US" ships before 1.x.
     pub language: String,
@@ -62,6 +94,11 @@ impl Default for Settings {
             ui_scale_percent: 100,
             follow_windows_text_size: true,
             sound_on_finish: true,
+            toast_on_finish: false,
+            shutdown_when_done: false,
+            auto_action: AutoAction::Off,
+            check_updates: false,
+            musicbrainz_lookup: false,
             log_level: LogLevel::Info,
             language: "en-US".into(),
             window: None,
@@ -146,6 +183,32 @@ mod tests {
         let l = load(&d.join("settings.toml"));
         assert_eq!(l.settings, Settings::default());
         assert!(l.note.is_none());
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn m6_fields_roundtrip_and_default_off() {
+        let d = temp_dir("settings-m6");
+        let p = d.join("settings.toml");
+        // Defaults: every M6 opt-in starts off.
+        let def = Settings::default();
+        assert_eq!(def.auto_action, AutoAction::Off);
+        assert!(!def.check_updates && !def.musicbrainz_lookup);
+        assert!(!def.toast_on_finish && !def.shutdown_when_done);
+        let s = Settings {
+            auto_action: AutoAction::Both,
+            check_updates: true,
+            musicbrainz_lookup: true,
+            toast_on_finish: true,
+            ..Default::default()
+        };
+        save(&p, &s).unwrap();
+        assert_eq!(load(&p), Loaded { settings: s, note: None });
+        // A pre-M6 settings file (no new keys) loads with defaults.
+        std::fs::write(&p, "schema = 1\nsound_on_finish = false\n").unwrap();
+        let l = load(&p);
+        assert_eq!(l.settings.auto_action, AutoAction::Off);
+        assert!(!l.settings.sound_on_finish);
         std::fs::remove_dir_all(d).unwrap();
     }
 

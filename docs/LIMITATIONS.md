@@ -56,6 +56,15 @@ Kept current every release. Items move out only with evidence.
 - Secure ripping compares repeated reads of the same drive only; it does not use C2 error pointers or drive read offsets, so it is not a bit-perfect guarantee against a drive that reads the same wrong data twice.
 - Quality scan grades come from read success, retries and timing on any drive (no vendor C2 reporting yet).
 
+## Backup and shell integration (M6)
+
+- **Backup staging copies the source once** into a temporary work folder (one subfolder per span) before anything is burned or imaged. A backup therefore needs free disk space roughly equal to its own size while it runs; the staging folder is deleted when the job ends (`--keep` keeps it).
+- **Restore from span ISOs extracts each ISO to a temporary folder first**, for the same reason: budget temporary space equal to the backup size.
+- **Auto-action opens the task window; it does not start the job.** A backup/rip output location is a per-job choice, so the window opens ready and the job is one click. Detection runs about two seconds after insertion and only for discs with a readable table of contents.
+- **Explorer verbs** run the command-line operations (Checksum, Image info) in a console window that stays open, so the result can be read. They are per-user; other Windows accounts do not see them.
+- **The update check and MusicBrainz lookup are the only network calls in the program**, both opt-in, both plain HTTPS reads with no account and no data sent beyond the disc ID (MusicBrainz) or the request itself. MusicBrainz answers depend on its community database: an unlisted CD rips with the names from the disc, and the lookup is simply noted in the log.
+- **The finish shutdown** uses Windows' announced shutdown (20-second grace, a message on screen, `shutdown /a` cancels). If another program blocks the shutdown, Windows says so; IsoFoundry does not force it.
+
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
 - MP3 encoding needs `libmp3lame.dll` next to the program or on the PATH (loaded at runtime, never bundled, D-012); without it, MP3 jobs fail with a clear message. The LAME path is **Unverified** on a real Windows machine.

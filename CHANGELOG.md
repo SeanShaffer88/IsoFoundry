@@ -4,6 +4,17 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Added — M6 integration: spanning backup, shell integration, opt-in online lookups (for 0.6.0)
+
+- **Spanning backup and restore** (`backup`, `backup-restore`, plus a task window with a restore variant). A folder is packed onto as many discs as it needs: files in name order, greedy packing, and any file larger than a span is split into `.ifpartNNN` chunks. The full plan is computed before the first disc is written, so an identical catalog (`ISOFBACKUP/CATALOG.JSON`, with a SHA-256 per file and per part) rides on every span next to a span marker. Backup writes one ISO per span (`--out-dir`), burns each span to a drive (prompting for the next blank), or rehearses against the simulated drive (`--fake`). Restore takes span folders or span ISOs in any order, names any missing span, joins split files and verifies every checksum.
+- **Completion actions that now actually fire**: the sound on finish (a setting since M0 that nothing consumed until now), an optional notification balloon, and an optional shutdown after a successful task (announced, 20-second grace, cancellable with `shutdown /a`). The backup command has `--shutdown-when-done` too.
+- **Auto-action on disc insert** (Options menu, off by default): a newly inserted data disc can open Copy disc to image, an audio CD can open Rip audio CD, or both. The job itself still starts with one click — its output folder is a per-job choice.
+- **Shell completion** (`completions powershell` / `completions bash`): scripts generated from the live command list, so they cannot drift.
+- **Explorer verbs** (`explorer-verbs install|uninstall|status`): per-user right-click entries (Checksum, Image info) for image files, no administrator rights, removed cleanly by the uninstall action.
+- **Opt-in update check** (`check-update`, or on start from the Options menu): asks GitHub for the newest release and says so; off by default and never done silently — IsoFoundry still makes no network calls the user did not ask for.
+- **MusicBrainz disc lookup** (`rip --musicbrainz`, a checkbox in the Rip window, an Options-menu default): disc IDs (MusicBrainz and freedb/CDDB) are computed for every audio rip and written into the rip log along with the lookup page; with the opt-in lookup the matching release's track titles name the ripped files. Rips stay fully offline when it is off.
+- The M5 tasks now show as available in the task grid and `list` (they were built in 0.5.0 but still labelled as planned there, so the grid showed a "ships later" note instead of opening their windows; the command line was unaffected).
+
 ## [0.5.0] - 2026-11-08
 
 ### Added

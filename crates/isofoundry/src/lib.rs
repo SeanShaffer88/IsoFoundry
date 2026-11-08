@@ -2,13 +2,17 @@
 //! Shared entry points for `isofoundry.exe` (window, GUI subsystem) and
 //! `isofoundry.com` (console twin for scripts, D-048).
 
+pub mod backup;
 pub mod cli;
 pub mod cli_audio;
+pub mod cli_backup;
 pub mod cli_burn;
 pub mod cli_image;
+pub mod cli_meta;
 pub mod cli_mount;
 pub mod cli_rip;
 pub mod cli_usb;
+pub mod finish_actions;
 pub mod layout;
 pub mod theme;
 #[cfg(windows)]
