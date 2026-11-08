@@ -5,6 +5,8 @@ pub mod console;
 pub mod gui;
 pub mod helper;
 pub mod mount;
+pub mod tasks;
+pub mod taskwin;
 pub mod util;
 
 use crate::cli::{HelperInfo, Platform};

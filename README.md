@@ -11,7 +11,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 ## Status
 
 - **0.1.0 (released)** — the M0 shell: main window, command line and elevated helper. Every task button already answers with the version that will bring it.
-- **On `main`, shipping in 0.2.0** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify), working today from the command line if you build from source.
+- **On `main`, shipping in 0.2.0** — the complete M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify): the task grid opens working windows for the image tasks, and the same jobs run from the command line if you build from source. The new windows are **Unverified** until exercised on a real desktop.
 - **Planned** — bootable USB (0.3.0), audio conversion (0.4.0), disc burning (0.5.0), disc copying and ripping (0.6.0), integration extras (0.7.0). See the [roadmap](#roadmap).
 
 ## What the 0.1.0 release does
@@ -24,7 +24,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 ## Image tools (on `main` — arriving in 0.2.0)
 
-These commands are implemented and tested in the source tree today:
+These jobs are implemented and tested in the source tree today, from the command line and from the task windows:
 
 - **`create-image`** — build an ISO from files and folders: ISO 9660 + Joliet + UDF 1.02 in one image sharing a single copy of the data, files over 4 GB, El Torito boot entries for BIOS (optional boot information table) and UEFI. Written to a `.part` file and renamed only when complete, so a cancelled build never leaves a half-written image.
 - **`image-info`** — an image's container format, tracks, file systems, label and boot entries.
@@ -139,7 +139,7 @@ All milestones ship as public 0.x pre-releases; **1.0** is when every 1.0 task w
 | Milestone | Release | Scope |
 |---|---|---|
 | M0 Shell | 0.1.0 ✅ | Window, task grid, CLI skeleton, settings, logs, elevated helper, packaging |
-| M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — engine done on `main`, task windows left |
+| M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — done on `main`, including the task windows |
 | M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
 | M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
 | M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn, multi-drive, job queue |
