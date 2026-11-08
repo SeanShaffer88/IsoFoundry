@@ -236,7 +236,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             DefWindowProcW(hwnd, msg, wp, lp)
         }
-        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX => ctl_color(wp),
+        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => ctl_color(wp),
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }

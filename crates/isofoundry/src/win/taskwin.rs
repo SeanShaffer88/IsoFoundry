@@ -263,6 +263,18 @@ pub(crate) fn ctl_color(wp: WPARAM) -> LRESULT {
     }
 }
 
+/// Puts a themed control on the dark Explorer theme (dark checkboxes,
+/// radios, scrollbars and progress track on Windows 10 1903+). Without it
+/// the standard controls paint with the light theme, whose label text is a
+/// low-contrast gray on our dark background.
+pub(crate) fn dark_theme(h: HWND) {
+    static NAME: std::sync::OnceLock<Vec<u16>> = std::sync::OnceLock::new();
+    let name = NAME.get_or_init(|| wide("DarkMode_Explorer"));
+    // SAFETY: a theme name for our own control; failure just keeps the
+    // default theme.
+    unsafe { SetWindowTheme(h, name.as_ptr(), std::ptr::null()) };
+}
+
 // ---------------------------------------------------------------- controls
 
 #[allow(clippy::too_many_arguments)] // mirrors CreateWindowExW's parameter list
@@ -300,6 +312,7 @@ fn child(
         if !font.is_null() {
             SendMessageW(hwnd, WM_SETFONT, font as usize, 1);
         }
+        dark_theme(hwnd);
         hwnd
     }
 }
@@ -394,6 +407,7 @@ pub(crate) fn progress_bar(parent: HWND, x: i32, y: i32, w: i32) -> HWND {
             std::ptr::null(),
         );
         SendMessageW(hwnd, PBM_SETRANGE32, 0, 1000);
+        dark_theme(hwnd);
         hwnd
     }
 }

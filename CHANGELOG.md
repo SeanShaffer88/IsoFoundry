@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Fixed
+- Task windows: checkboxes, radio buttons and the progress bar now follow the dark control theme — their labels rendered in a low-contrast gray on the dark background and the progress bar painted as a bright strip.
+
 ## [0.2.0] - 2026-11-07
 
 ### Changed
