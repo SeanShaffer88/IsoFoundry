@@ -1,0 +1,20 @@
+[package]
+name = "if-audio"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Audio decode/encode pipeline for IsoFoundry (Symphonia decode; FLAC/WAV native encode; LAME and Media Foundation on Windows)."
+
+[dependencies]
+if-core = { path = "../if-core" }
+symphonia = { version = "0.5", default-features = false, features = ["wav", "flac", "mp3", "ogg", "vorbis", "aac", "isomp4", "pcm"] }
+flacenc = "0.5"
+lofty = "0.25"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_Media",
+] }

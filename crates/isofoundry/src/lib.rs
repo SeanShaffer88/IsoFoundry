@@ -3,6 +3,7 @@
 //! `isofoundry.com` (console twin for scripts, D-048).
 
 pub mod cli;
+pub mod cli_audio;
 pub mod cli_image;
 pub mod cli_mount;
 pub mod cli_usb;

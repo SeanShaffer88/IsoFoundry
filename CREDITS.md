@@ -23,6 +23,10 @@
 ## Third-party crates in use
 - [miniz_oxide](https://github.com/Frommi/miniz_oxide) (MIT / Zlib / Apache-2.0): deflate for CHD.
 - [sha1](https://github.com/RustCrypto/hashes) (RustCrypto, MIT / Apache-2.0): CHD checksums.
+- [symphonia](https://github.com/pdeljanov/Symphonia) (MPL-2.0): audio decoding (M3).
+- [flacenc](https://github.com/yoya/flacenc) (Apache-2.0): FLAC encoding (M3).
+- [lofty](https://github.com/Serial-ATA/lofty-rs) (MIT / Apache-2.0): audio tags (M3).
+- LAME (LGPL): MP3 encoding only through `libmp3lame.dll` loaded at runtime — it is not bundled or linked (D-012); the user supplies the DLL.
 
 
 ## Planned third-party components (D-012)

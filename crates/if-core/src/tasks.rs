@@ -67,8 +67,16 @@ pub struct Task {
 }
 
 /// Tasks whose core works in this build (GUI dialog and/or CLI).
-pub const AVAILABLE: &[&str] =
-    &["bootable-usb", "browse-image", "checksum", "convert-image", "create-image", "edit-image", "install-windows-usb"];
+pub const AVAILABLE: &[&str] = &[
+    "bootable-usb",
+    "browse-image",
+    "checksum",
+    "convert-audio",
+    "convert-image",
+    "create-image",
+    "edit-image",
+    "install-windows-usb",
+];
 
 impl Task {
     pub fn status(&self) -> Status {

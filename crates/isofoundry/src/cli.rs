@@ -86,6 +86,9 @@ USB commands (administrator rights via the helper; disk targets erase the disk):
   windows-to-usb IMAGE --disk N [--layout mbr|gpt|gpt-ntfs] [--yes]\n\
                        Windows installer stick (Microsoft's own boot files;\n\
                        gpt-ntfs for images whose install.wim is over 4 GB)\n\n\
+Audio commands:\n\
+  convert-audio FILES... --to wav|flac|mp3|aac [--out DIR] [--bitrate N] [--replaygain] [--apply-gain]\n\
+                       Convert audio files in a batch; tags are carried across\n\n\
 Image commands:\n{}{}\n\
 Task commands not available yet (exit code 40 until their version ships):\n",
         if_core::APP_VERSION,
@@ -315,6 +318,7 @@ pub fn run(
         "extract" | "checksum" | "compare" | "image-info" | "verify" | "create-image" | "convert-image"
         | "edit-image" => crate::cli_image::run(cmd, tail, &g, &mut o, log),
         "mount" | "unmount" => crate::cli_mount::run(cmd, tail, dirs, &mut o),
+        "convert-audio" => crate::cli_audio::run(cmd, tail, &g, &mut o),
         "usb" | "windows-to-usb" => crate::cli_usb::run(cmd, tail, &g, platform, &mut o),
         other => match tasks::by_cli(other) {
             Some(t) => {

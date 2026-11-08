@@ -40,6 +40,14 @@ Kept current every release. Items move out only with evidence.
 - FAT32 layouts cannot hold an `install.wim`/`install.esd` over the 4 GB FAT32 file limit — the write is refused with a clear message; use the GPT+NTFS layout. Splitting an install image is not supported yet.
 - Files mode needs a readable ISO image; raw mode accepts any image file.
 
+## Audio (M3)
+- Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.
+- MP3 encoding needs `libmp3lame.dll` next to the program or on the PATH (loaded at runtime, never bundled, D-012); without it, MP3 jobs fail with a clear message. The LAME path is **Unverified** on a real Windows machine.
+- AAC/M4A encoding goes through Windows Media Foundation with hand-declared bindings (windows-sys ships none) and is **Unverified** on real hardware.
+- WMA and APE files cannot be decoded yet (Symphonia has no decoder for them); Media Foundation decoding is planned alongside the AAC work.
+- Sources with more than two channels are reduced to the front left/right pair.
+- A file is decoded fully into memory before encoding; very long recordings need the RAM to match (about 25 MB per minute of stereo audio).
+
 ## Platform
 - Windows 10 22H2 and 11 only. ARM64 builds are produced but **Unverified** until run on ARM64 hardware.
 - LAME MP3 encoding requires `libmp3lame.dll` (not bundled-linked); ARM64 build availability unverified.

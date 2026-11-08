@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 done on `main` (reading, extraction, hashing, ISO creation, CD formats, CHD, conversion, editing, mounting and the GUI task windows); ships as 0.2.0. M2 USB built on `main` (usbwriter crate, both task windows, CLI, helper protocol v2); ships as 0.3.0 — physical-disk runs and QEMU boot checks still owed.
+**Status: in development since 2026-10-31 (WinISOPilot 1.0.0 shipped).** Progress: M0 done (0.1.0). M1 done on `main` (reading, extraction, hashing, ISO creation, CD formats, CHD, conversion, editing, mounting and the GUI task windows); ships as 0.2.0. M2 USB built on `main` (usbwriter crate, both task windows, CLI, helper protocol v2); ships as 0.3.0 — physical-disk runs and QEMU boot checks still owed. M3 audio conversion built on `main` (if-audio crate: Symphonia decode, WAV/FLAC encode, MP3 via runtime LAME, AAC via Media Foundation, tags, ReplayGain, batch window + CLI); ships as 0.4.0 — the Media Foundation AAC path and LAME-on-Windows path are still to be exercised on a real machine.
 
 All milestones ship as public **0.x pre-releases**. **1.0** = every 1.0 row done, tested, documented.
 Evidence label per feature: **Verified** (tested on real target), **Partially verified** (fake drive / VHDX / VM only), **Unverified**.
