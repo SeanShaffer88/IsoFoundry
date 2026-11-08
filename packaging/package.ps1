@@ -3,11 +3,9 @@
   Builds IsoFoundry release assets from compiled binaries (D-044).
 
 .DESCRIPTION
-  Produces, in -OutDir:
-    IsoFoundry-v<ver>-<arch>-Portable.zip       portable build (IsoFoundry.portable marker)
-    IsoFoundry-v<ver>-<arch>-PortableApps.zip   PortableApps.com Format layout
-    IsoFoundry-v<ver>-x64-Setup.exe             Inno Setup installer   (-Installers, x64 only)
-    IsoFoundry-v<ver>-x64-Setup.msi             WiX v5 MSI             (-Installers, x64 only)
+  Produces, in -OutDir (releases carry one installer and one portable zip):
+    IsoFoundry-v<ver>-x64-Portable.zip          portable build (IsoFoundry.portable marker)
+    IsoFoundry-v<ver>-x64-Setup.exe             Inno Setup installer   (-Installers)
   and appends each file's hash to SHA256SUMS.txt.
 
   Run from the repository root after
@@ -23,8 +21,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-$numeric = ($version -split '-')[0]                      # 0.1.0-dev -> 0.1.0 (MSI and PAF need numbers)
-if ($numeric -notmatch '^\d+\.\d+\.\d+$') { throw "unexpected version '$version'" }
+if ($version -notmatch '^\d+\.\d+\.\d+') { throw "unexpected version '$version'" }
 $rel = "target/$Target/release"
 foreach ($f in 'isofoundry.exe', 'isofoundry-cli.exe', 'isofoundry-helper.exe', 'isofoundry-portable.exe') {
   if (-not (Test-Path "$rel/$f")) { throw "$rel/$f is missing; build the workspace first" }
@@ -61,25 +58,10 @@ $zip = Join-Path $OutDir "$name.zip"
 Compress-Archive -Path "$dir/*" -DestinationPath $zip -Force
 Add-Sum $zip
 
-# 2. PortableApps.com Format layout.
-$paf = Join-Path $work 'IsoFoundryPortable'
-Copy-Program (Join-Path $paf 'App/IsoFoundry')
-Copy-Item -Recurse packaging/paf/App/AppInfo (Join-Path $paf 'App/AppInfo')
-Copy-Item packaging/paf/help.html $paf
-Copy-Item "$rel/isofoundry-portable.exe" (Join-Path $paf 'IsoFoundryPortable.exe')
-New-Item -ItemType Directory -Force (Join-Path $paf 'Other/Source'), (Join-Path $paf 'Data') | Out-Null
-Copy-Item LICENSE, README.md (Join-Path $paf 'Other/Source')
-$ini = Join-Path $paf 'App/AppInfo/appinfo.ini'
-(Get-Content $ini -Raw).Replace('@PACKAGE_VERSION@', "$numeric.0").Replace('@DISPLAY_VERSION@', $version) |
-  Set-Content -NoNewline -Encoding ascii $ini
-$pafZip = Join-Path $OutDir "IsoFoundry-v$version-$Arch-PortableApps.zip"
-Compress-Archive -Path $paf -DestinationPath $pafZip -Force
-Add-Sum $pafZip
-
 if (-not $Installers) { return }
-if ($Arch -ne 'x64') { throw 'installers are built for x64 only (D-044)' }
+if ($Arch -ne 'x64') { throw 'installers are built for x64 only' }
 
-# 3. Inno Setup installer (Setup.exe with the payload compiled in).
+# 2. Inno Setup installer (Setup.exe with the payload compiled in).
 $iscc = @(
   (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
   "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
@@ -89,10 +71,3 @@ if (-not $iscc) { throw 'Inno Setup 6 (ISCC.exe) not found' }
 & $iscc /Q "/DAppVersion=$version" "/DSourceDir=$stage" "/DOutputDir=$OutDir" packaging/isofoundry.iss
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
 Add-Sum (Join-Path $OutDir "IsoFoundry-v$version-x64-Setup.exe")
-
-# 4. WiX MSI.
-$msi = Join-Path $OutDir "IsoFoundry-v$version-x64-Setup.msi"
-wix build -arch x64 -d "Version=$numeric" -d "SourceDir=$stage" -o $msi packaging/isofoundry.wxs
-if ($LASTEXITCODE -ne 0) { throw "wix build failed ($LASTEXITCODE)" }
-Remove-Item -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($msi, 'wixpdb'))
-Add-Sum $msi

@@ -2,7 +2,7 @@
 
 # IsoFoundry
 
-**Open source disc burning, imaging & bootable USB suite** for Windows 10 22H2 / 11 (x64 and ARM64): one dark window with a grid of tasks, in the spirit of AnyBurn Pro — plus a full command line for every task. Free, offline, no telemetry.
+**Open source disc burning, imaging & bootable USB suite** for Windows 10 22H2 / 11 (x64): one dark window with a grid of tasks, in the spirit of AnyBurn Pro — plus a full command line for every task. Free, offline, no telemetry.
 
 ## TL;DR
 
@@ -69,19 +69,17 @@ More captures (task windows, progress with verify, drive info, USB write confirm
 
 ## Requirements
 
-- Windows 10 22H2 or Windows 11. x64 is the tested build; ARM64 portable builds are produced but **Unverified** until run on ARM64 hardware.
+- Windows 10 22H2 or Windows 11, x64. Releases ship x64 only.
 - No runtime prerequisites — the release builds are self-contained native executables.
 - Administrator rights are asked for only by the tasks that need them, with the reason shown first.
 - Disc features need an optical drive, obviously — but see [Hardware compatibility](#hardware-compatibility): they are developed against a simulated drive.
 
 ## Install
 
-Download from [Releases](https://github.com/SeanShaffer88/IsoFoundry/releases):
+Download from [Releases](https://github.com/SeanShaffer88/IsoFoundry/releases) — every release carries just one installer and one portable zip:
 
 - `IsoFoundry-v<version>-x64-Setup.exe` — installs for you only (no administrator rights) or for all users
-- `IsoFoundry-v<version>-x64-Setup.msi` — all users, for managed deployment
-- `IsoFoundry-v<version>-<x64|arm64>-Portable.zip` — unzip and run; settings stay in `data\` beside the program
-- `IsoFoundry-v<version>-<x64|arm64>-PortableApps.zip` — PortableApps.com Format (a folder package, not a `.paf.exe` installer: extract `IsoFoundryPortable` into your PortableApps folder)
+- `IsoFoundry-v<version>-x64-Portable.zip` — unzip and run; settings stay in `data\` beside the program
 
 Check downloads against `SHA256SUMS.txt`. Builds are not code-signed yet, so Windows SmartScreen may warn on first run.
 
@@ -94,7 +92,7 @@ Settings live in a versioned TOML file in the program's data folder (portable bu
 You need the Rust toolchain (Rust 1.82 or newer; the workspace is edition 2021).
 
 ```powershell
-# Official builds: GitHub Actions, MSVC, x64 + ARM64 (static CRT)
+# Official builds: GitHub Actions, MSVC x64 (static CRT)
 # Local build without Visual Studio:
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --target x86_64-pc-windows-gnu
