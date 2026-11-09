@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-08
+
+Patch release: one robustness fix from the panic-path review, plus documentation. No feature changes.
+
 ### Fixed
 
 - Opening a CHD whose header declared an absurd size could abort the program while allocating the hunk map. The header is now checked first (AUDIT B-11).
