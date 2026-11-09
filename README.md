@@ -19,7 +19,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 - **0.4.0** — M2 USB and M3 audio together (0.3.0 was never released separately): Create bootable USB, Install Windows to USB, and batch audio conversion with tags and ReplayGain. USB is tested end-to-end against disk-image files; writing a physical disk and booting from it are still to be confirmed. MP3 needs `libmp3lame.dll` at runtime; AAC uses Windows Media Foundation; both encode paths are **Unverified** on real hardware.
 - **0.2.0** — M1 image toolkit (create, browse, extract, edit, convert, mount, checksum, verify) in task windows and on the command line.
 - **0.1.0** — M0 shell: main window, command line and elevated helper.
-- **Next** — 1.x: multiboot USB and Spanish UI. FAT/VHD image editing and Xbox XISO support are available in the current development branch; see the [roadmap](#roadmap).
+- **Next** — 1.x: multiboot USB, Spanish UI, and a native Windows 11 context menu. FAT/VHD image editing, Xbox XISO support, and the USB-to-image task window are implemented after 1.0.1; see the [roadmap](#roadmap).
 
 ## What the program does today
 
@@ -200,13 +200,13 @@ The 0.x milestones shipped as public pre-releases; **1.0** (2026-11-08) is the f
 |---|---|---|
 | M0 Shell | 0.1.0 ✅ | Window, task grid, CLI skeleton, settings, logs, elevated helper, packaging |
 | M1 Image tools | 0.2.0 | Create / browse / extract / edit / convert / mount images, checksums + `.dat`, verify — released in 0.2.0 |
-| M2 USB | 0.3.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
+| M2 USB | 0.4.0 | Bootable USB (GPT/MBR, UEFI/BIOS), Windows installer layouts, install Windows to USB, USB ↔ image |
 | M3 Audio convert | 0.4.0 | Decode/encode pipeline, tags, batch convert, ReplayGain |
 | M4 Burning (IMAPI2) | 0.5.0 | Burn image and files, multisession, erase, verify after burn |
 | M5 Disc & ripping (MMC) | 0.5.0 | Disc → image (raw + subchannel), disc → disc, secure audio ripping, audio CD burning, surface/quality scans, recovery |
 | M6 Integration | 0.9.0 | Spanning backup, auto-action on disc insert, Explorer verbs, opt-in update check, MusicBrainz, completion actions |
 | RC / 1.0 | 0.9.0 / 1.0 | Audit pass, failure drills, accessibility pass, measured budgets, release |
-| 1.x | — | Multiboot USB, FAT/VHD image editing, Xbox XISO, Spanish UI, native Windows 11 context menu |
+| 1.x | — | Multiboot USB, Spanish UI, native Windows 11 context menu |
 | 2.0 | — | Windows ISO customization integrated from [WinISOPilot](https://github.com/SeanShaffer88/WinISOPilot) |
 
 Full detail: [docs/roadmap.md](docs/roadmap.md).

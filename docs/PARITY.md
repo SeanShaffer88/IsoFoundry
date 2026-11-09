@@ -32,5 +32,6 @@ limit · Missing = not there yet.
 | Blu-ray video (BDMV) authoring | Missing | Post-1.0 candidate |
 | Copy-protection handling | Never | Out of scope by design |
 
-Update rule: a row moves only when the behaviour is in a release
-and covered by a test or a recorded field check.
+Update rule: rows describe the current source build and must be
+covered by a test or recorded field check. Release and real-hardware
+status are called out separately in the notes.

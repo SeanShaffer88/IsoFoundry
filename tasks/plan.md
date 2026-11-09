@@ -2,7 +2,7 @@
 
 ## Overview
 
-Deliver the user's requested disc, image, archive, and USB capabilities in tested vertical slices, guided by the approved [capability map](../CAPABILITY-MAP.md). Preserve completed XISO/FAT work and the in-progress USB-to-image changes. The next implementation slice is fixed/dynamic VHD support for FAT12/16/32. The expanded catalog is staged; no feature is called complete until its user-facing path, focused tests, documentation, and software-only verification are in place.
+Deliver the user's requested disc, image, archive, and USB capabilities in tested vertical slices, guided by the approved [capability map](../CAPABILITY-MAP.md). The XISO, FAT/VHD image-foundation, and USB-to-image slices are implemented and verified in the current source. Continue with the remaining multiboot, image/media, and localization modules; no feature is complete until its user-facing path, focused tests, documentation, and software-only verification are in place.
 
 ## Scope and assumptions
 
@@ -18,7 +18,7 @@ Deliver the user's requested disc, image, archive, and USB capabilities in teste
 - Keep parsing, filesystem integration, and image editing in the platform-independent `if-image` crate; GUI and CLI use the shared implementation.
 - Validate all VHD offsets, checksums, block maps, lengths, and arithmetic before exposing a filesystem or allocating based on untrusted metadata.
 - Always write edits to a separate destination; never modify a source image in place or overwrite an existing destination.
-- Keep USB writes behind the existing guarded USB/helper path. Preserve the existing USB-to-image worktree changes and `.serena/` data.
+- Keep USB writes behind the existing guarded USB/helper path. Preserve the untracked `.serena/` session metadata; do not stage it with feature commits.
 - The approved capability map defines module boundaries and dependency order. Each remaining module receives its own spec and task breakdown before implementation.
 
 ## Task List
@@ -85,7 +85,7 @@ CLI/scripting, batch queues, portable operation, diagnostics, and capability/lim
 | Loopback boot support varies among Linux and Windows images. | High | Define a tested compatibility set and document unsupported payloads rather than promise universal booting. |
 | Destructive disk or optical operations can erase user data. | High | Preserve existing target safety checks and require clear target identity and proportionate confirmation on every route. |
 | The feature catalog includes proprietary formats, protected media, hardware-specific operations, and platform-specific APIs. | High | Exclude copy-protection circumvention; implement only formats and operations with reliable evidence; document host/hardware limits. |
-| Existing USB-to-image changes and `.serena/` are uncommitted. | High | Preserve them; do not reset, overwrite, or stage them with unrelated feature commits. |
+| `.serena/` session metadata is untracked. | Low | Preserve it; do not stage it with feature commits. |
 
 ## Open questions
 

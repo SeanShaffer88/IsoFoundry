@@ -1,5 +1,7 @@
 # Spec: Image Foundation — VHD Support
 
+**Status:** Implemented and documented in the current source.
+
 ## Objective
 
 Complete the next `image-foundation` increment: support fixed and dynamic VHD containers for FAT12/16/32 image workflows, including inspect, browse, extract, and safe edit-to-new-image. This extends the existing ISO/XISO/FAT image engine and the already implemented FAT editor. It does not replace or discard existing USB-to-image work.
