@@ -69,7 +69,7 @@ Every job follows: **plan → preview → confirm (proportional) → journal →
 ## 5. Image engine
 
 - Writers: ISO9660 (levels 1–3, Rock Ridge off), Joliet, UDF 1.02/1.50/2.01/2.50/2.60, hybrid ISO+UDF, El Torito (BIOS + UEFI).
-- Readers: above + BIN/CUE (multi-track, audio), CCD/IMG/SUB, MDS/MDF (v1 only, reverse-engineered: Unverified), NRG v1/v2, CDI, DMG (UDIF raw/zlib, HFS+ read-only browse), WIM (browse via wimlib or own reader: decide M1).
+- Readers: above + FAT12/16/32 (raw superfloppy or primary MBR partition, browse/extract), XDVDFS (read-only browse/extract), BIN/CUE (multi-track, audio), CCD/IMG/SUB, MDS/MDF (v1 only, reverse-engineered: Unverified), NRG v1/v2, CDI, DMG (UDIF raw/zlib, HFS+ read-only browse), WIM (browse via wimlib or own reader: decide M1).
 - Edit image: load tree, add/remove/rename, rebuild to new file (never in place).
 - Convert: any readable → ISO / BIN-CUE / CCD / IMG / CHD.
 

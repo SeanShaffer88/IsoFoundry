@@ -39,8 +39,8 @@ Complete the four explicitly selected 1.x roadmap features: multiboot USB, FAT/V
 - [x] CLI and GUI workflows are documented and tested without physical hardware.
 
 ### Phase 2: FAT and VHD image editing
-- [ ] Task 5: Read FAT12/16/32 volumes and locate supported partitions.
-- [ ] Task 6: Browse and extract FAT images through existing image workflows.
+- [x] Task 5: Read FAT12/16/32 volumes and locate supported partitions.
+- [x] Task 6: Browse and extract FAT images through existing image workflows.
 - [ ] Task 7: Edit FAT images and save safely as a new image.
 - [ ] Task 8: Read and write fixed/dynamic VHD containers with validated metadata.
 - [ ] Task 9: Integrate VHD-contained FAT editing and verify round trips.

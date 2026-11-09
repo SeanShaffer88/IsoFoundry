@@ -65,6 +65,9 @@ impl Project {
         if v.fs.kind() == FsKind::Xdvdfs {
             return bad("XDVDFS images are read-only and cannot be edited");
         }
+        if v.fs.kind() == FsKind::Fat {
+            return bad("FAT images are read-only and cannot be edited yet");
+        }
         let mut warnings = Vec::new();
         let label = v.fs.label();
         let joliet = v.found.contains(&FsKind::Joliet) || v.found.contains(&FsKind::Udf);

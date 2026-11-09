@@ -68,35 +68,35 @@
 **Files likely touched:** `crates/if-image/src/write/xiso.rs`, `crates/if-image/src/write/mod.rs`, `crates/isofoundry/src/cli_image.rs`, focused tests/docs
 **Estimated scope:** Medium
 
-## Task 5: Reading FAT volumes and locating supported partitions
+## Task 5: Reading FAT volumes and locating supported partitions — Done
 
 **Description:** Implement bounded FAT12/16/32 volume parsing and identify supported superfloppy or MBR-partitioned FAT volumes in raw disk images.
 
 **Acceptance criteria:**
-- [ ] FAT12/16/32 fixtures expose directory trees, long names, file extents, and labels where available.
-- [ ] Partition/BPB geometry and all cluster chains are bounds-checked; unsupported/exFAT layouts are rejected clearly.
-- [ ] Malformed loops and inconsistent chains terminate safely.
+- [x] FAT12/16/32 fixtures expose directory trees, long names, file extents, and labels where available.
+- [x] Partition/BPB geometry and all cluster chains are bounds-checked; unsupported/exFAT layouts are rejected clearly.
+- [x] Malformed loops and inconsistent chains terminate safely.
 
 **Verification:**
-- [ ] Add fixture tests across FAT types, nested directories, long names, fragmented files, and corrupt chains.
-- [ ] Run focused `if-image` tests and malformed-input drills.
+- [x] Add fixture tests across FAT types, nested directories, long names, fragmented files, and corrupt chains.
+- [x] Run focused `if-image` tests and malformed-input drills.
 
 **Dependencies:** Task 1
 **Files likely touched:** `crates/if-image/src/fat.rs`, `crates/if-image/src/fs.rs`, `crates/if-image/src/lib.rs`, `crates/if-image/tests/read.rs`
 **Estimated scope:** Medium
 
-## Task 6: Browsing and extracting FAT images
+## Task 6: Browsing and extracting FAT images — Done
 
 **Description:** Connect raw FAT floppy and partition images to the existing image-info, browse, and extraction surfaces.
 
 **Acceptance criteria:**
-- [ ] CLI image-info and extraction can open supported raw FAT images.
-- [ ] Existing GUI browse/extract flow handles FAT paths with the same progress and cancellation behavior.
-- [ ] ISO/Joliet/UDF selection and behavior remain unchanged.
+- [x] CLI image-info and extraction can open supported raw FAT images.
+- [x] Existing GUI browse/extract flow handles FAT paths with the same progress and cancellation behavior.
+- [x] ISO/Joliet/UDF selection and behavior remain unchanged.
 
 **Verification:**
-- [ ] Add CLI/integration coverage for FAT images and readback after extraction.
-- [ ] Build app and run all `if-image` integration tests.
+- [x] Add CLI/integration coverage for FAT images and readback after extraction.
+- [x] Build app and run all `if-image` integration tests.
 
 **Dependencies:** Task 5
 **Files likely touched:** `crates/if-image/src/container.rs`, `crates/if-image/src/fs.rs`, `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/browse.rs`

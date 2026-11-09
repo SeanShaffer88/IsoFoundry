@@ -74,6 +74,7 @@ pub fn open_volume(path: &Path, prefer: Option<FsKind>) -> Result<Volume, (Exit,
 
 fn fs_kind(s: &str) -> Result<FsKind, String> {
     match s.to_ascii_lowercase().as_str() {
+        "fat" => Ok(FsKind::Fat),
         "udf" => Ok(FsKind::Udf),
         "joliet" => Ok(FsKind::Joliet),
         "iso9660" | "iso" => Ok(FsKind::Iso9660),
@@ -628,6 +629,38 @@ mod tests {
         path
     }
 
+    fn fat12_fixture() -> PathBuf {
+        let d = tmp("fat12");
+        std::fs::create_dir_all(&d).unwrap();
+        let mut image = vec![0; 2880 * 512];
+        let boot = &mut image[..512];
+        boot[..3].copy_from_slice(&[0xeb, 0x3c, 0x90]);
+        boot[3..11].copy_from_slice(b"ISOFNDRY");
+        boot[11..13].copy_from_slice(&512u16.to_le_bytes());
+        boot[13] = 1;
+        boot[14..16].copy_from_slice(&1u16.to_le_bytes());
+        boot[16] = 2;
+        boot[17..19].copy_from_slice(&32u16.to_le_bytes());
+        boot[19..21].copy_from_slice(&2880u16.to_le_bytes());
+        boot[21] = 0xf0;
+        boot[22..24].copy_from_slice(&9u16.to_le_bytes());
+        boot[38] = 0x29;
+        boot[43..54].copy_from_slice(b"FAT CLI    ");
+        boot[510..512].copy_from_slice(&[0x55, 0xaa]);
+        for start in [512usize, 10 * 512] {
+            image[start..start + 5].copy_from_slice(&[0xf0, 0xff, 0xff, 0xff, 0x0f]);
+        }
+        let root = &mut image[19 * 512..21 * 512];
+        root[..11].copy_from_slice(b"HELLO   TXT");
+        root[11] = 0x20;
+        root[26..28].copy_from_slice(&2u16.to_le_bytes());
+        root[28..32].copy_from_slice(&5u32.to_le_bytes());
+        image[21 * 512..21 * 512 + 5].copy_from_slice(b"hello");
+        let path = d.join("fat.img");
+        std::fs::write(&path, image).unwrap();
+        path
+    }
+
     #[test]
     fn info_json() {
         let (code, out, _) = call(&["image-info", &fixture("boot.iso"), "--json"]);
@@ -670,6 +703,31 @@ mod tests {
             "sub",
             "--fs",
             "xdvdfs",
+        ]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn image_info_and_extract_support_fat() {
+        let image = fat12_fixture();
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["FAT"]));
+        assert_eq!(info["label"], "FAT CLI");
+
+        let dest = image.parent().unwrap().join("extracted");
+        let (code, _, err) = call(&[
+            "extract",
+            image.to_str().unwrap(),
+            "--out",
+            dest.to_str().unwrap(),
+            "--path",
+            "hello.txt",
+            "--fs",
+            "fat",
         ]);
         assert_eq!(code, 0, "{err}");
         assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
