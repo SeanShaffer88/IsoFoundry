@@ -38,6 +38,9 @@ Primary sources to check before implementing or changing behavior (per the dev c
 
 - UEFI specifications: https://uefi.org/specifications · ATA (T13): https://www.t13.org
 - Boot loaders: GRUB https://www.gnu.org/software/grub · Syslinux https://www.syslinux.org · rEFInd https://www.rodsbooks.com/refind
+- GRUB loopback booting: https://www.gnu.org/software/grub/manual/grub/html_node/Loopback-booting.html — GRUB documents that loopback compatibility depends on each OS being able to discover its root from the loopback image; it is not universal.
+- Microsoft VHD format specification: https://www.microsoft.com/en-us/download/details.aspx?id=23850
+- XDVDFS/XISO implementation reference: https://github.com/XboxDev/extract-xiso — format behavior reference only; no code or game content is copied.
 - Virtualization: QEMU https://www.qemu.org · VirtualBox https://www.virtualbox.org · VMware https://www.vmware.com · Hyper-V https://learn.microsoft.com/windows-server/virtualization/hyper-v · Evaluation Center https://www.microsoft.com/evalcenter
 - Partitioning / FAT: GNU Parted https://www.gnu.org/software/parted · gdisk https://www.rodsbooks.com/gdisk · mtools https://www.gnu.org/software/mtools
 - Installers / init: Anaconda https://www.fedoraproject.org/wiki/Anaconda · systemd https://systemd.io

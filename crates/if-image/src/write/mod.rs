@@ -8,6 +8,7 @@
 
 mod names;
 pub(crate) mod udfw;
+mod xiso;
 
 use crate::{bad, Error, Result, SECTOR};
 use std::collections::HashSet;
@@ -67,7 +68,7 @@ impl Read for ImageReader {
     }
 }
 
-fn reader(src: &Source, size: u64) -> Result<Box<dyn Read>> {
+pub(crate) fn reader(src: &Source, size: u64) -> Result<Box<dyn Read>> {
     Ok(match src {
         Source::File(p) => Box::new(File::open(p).map_err(|e| Error::Format(format!("{}: {e}", p.display())))?),
         Source::Bytes(b) => Box::new(std::io::Cursor::new(b.clone())),
@@ -199,6 +200,8 @@ pub struct Summary {
     pub files: u64,
     pub dirs: u64,
 }
+
+pub use xiso::build_xiso;
 
 struct Plan {
     nodes: Vec<P>,

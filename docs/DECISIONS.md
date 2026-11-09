@@ -91,3 +91,13 @@ Format: `D-NNN — decision — why — status`. Newest at the bottom. Changing 
   release notes: promotion asserts the feature set is complete
   and gated (simulated drive + CI), not that real-hardware field
   runs have happened.
+
+## D-054 — Post-1.0.1 implementation status (2026-11-09)
+
+- The development source adds XISO creation/browsing, raw FAT and
+  fixed/dynamic VHD workflows, and a USB-to-image task window. These
+  additions are not part of the 1.0.1 release; hardware status remains
+  **Unverified** as stated in `LIMITATIONS.md`.
+- D-018 records the intended audio format scope, not the shipped
+  encoders. Opus and Vorbis encoding are not implemented; WAV, FLAC,
+  MP3, and AAC/M4A are the available encoders.

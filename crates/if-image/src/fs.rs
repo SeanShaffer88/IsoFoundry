@@ -13,9 +13,16 @@ pub struct Extent {
     pub sparse: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ByteExtent {
+    pub offset: u64,
+    pub len: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Data {
     Extents(Vec<Extent>),
+    ByteExtents(Vec<ByteExtent>),
     /// Small files stored inside the UDF file entry.
     Inline(Vec<u8>),
 }
@@ -33,6 +40,8 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FsKind {
+    Xdvdfs,
+    Fat,
     Iso9660,
     Joliet,
     Udf,
@@ -41,6 +50,8 @@ pub enum FsKind {
 impl FsKind {
     pub fn name(self) -> &'static str {
         match self {
+            FsKind::Xdvdfs => "XDVDFS",
+            FsKind::Fat => "FAT",
             FsKind::Iso9660 => "ISO 9660",
             FsKind::Joliet => "Joliet",
             FsKind::Udf => "UDF",
@@ -67,6 +78,30 @@ pub fn read_data(src: &mut dyn SectorSource, data: &Data, size: u64, offset: u64
             let n = want.min(b.len().saturating_sub(s));
             buf[..n].copy_from_slice(&b[s..s + n]);
             buf[n..want].fill(0);
+            Ok(want)
+        }
+        Data::ByteExtents(exts) => {
+            let mut done = 0usize;
+            let mut base = 0u64;
+            for extent in exts {
+                if done == want {
+                    break;
+                }
+                let pos = offset + done as u64;
+                if pos >= base + extent.len {
+                    base += extent.len;
+                    continue;
+                }
+                let in_extent = pos - base;
+                let count = ((extent.len - in_extent) as usize).min(want - done);
+                let bytes = crate::source::read_bytes(src, 0, extent.offset + in_extent, count)?;
+                buf[done..done + count].copy_from_slice(&bytes);
+                done += count;
+                base += extent.len;
+            }
+            if done < want {
+                buf[done..want].fill(0);
+            }
             Ok(want)
         }
         Data::Extents(exts) => {
@@ -137,14 +172,22 @@ pub struct Volume {
 }
 
 impl Volume {
-    /// Opens the best file system on `src`: UDF (large files, Unicode),
-    /// then Joliet, then plain ISO 9660. `prefer` picks one explicitly.
+    /// Opens the best file system on `src`: XDVDFS, UDF (large files,
+    /// Unicode), Joliet, then plain ISO 9660. `prefer` picks one explicitly.
     pub fn open(mut src: Box<dyn SectorSource>, prefer: Option<FsKind>) -> Result<Volume> {
+        let xdvdfs = crate::xiso::Xdvdfs::probe(src.as_mut())?;
+        let fat = crate::fat::Fat::probe(src.as_mut())?;
         let iso = crate::iso9660::scan(src.as_mut()).ok();
         let udf_result = crate::udf::Udf::open(src.as_mut());
         let udf_error = udf_result.as_ref().err().map(|e| e.to_string()).filter(|m| m != "no UDF anchor");
         let udf = udf_result.ok();
         let mut found = Vec::new();
+        if xdvdfs.is_some() {
+            found.push(FsKind::Xdvdfs);
+        }
+        if fat.is_some() {
+            found.push(FsKind::Fat);
+        }
         if udf.is_some() {
             found.push(FsKind::Udf);
         }
@@ -159,7 +202,7 @@ impl Volume {
         if found.is_empty() {
             return match udf_error {
                 Some(m) => bad(format!("UDF file system found but not readable: {m}")),
-                None => bad("no ISO 9660, Joliet or UDF file system found"),
+                None => bad("no XDVDFS, FAT, ISO 9660, Joliet or UDF file system found"),
             };
         }
         let want = prefer.unwrap_or(found[0]);
@@ -169,6 +212,8 @@ impl Volume {
         let boot =
             iso.as_ref().and_then(|s| s.boot_catalog).and_then(|lba| crate::eltorito::read(src.as_mut(), lba).ok());
         let fs: Box<dyn FileSystem> = match want {
+            FsKind::Xdvdfs => Box::new(xdvdfs.expect("checked")),
+            FsKind::Fat => Box::new(fat.expect("checked")),
             FsKind::Udf => Box::new(udf.expect("checked")),
             FsKind::Joliet => Box::new(iso.and_then(|s| s.joliet).expect("checked")),
             FsKind::Iso9660 => Box::new(iso.and_then(|s| s.primary).expect("checked")),

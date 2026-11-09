@@ -227,6 +227,11 @@ pub(crate) fn run_on_file_with(
             Ok((0, n, notes))
         }
         UsbJobKind::ReadImage { out, limit_bytes } => {
+            if let (Ok(source), Ok(destination)) = (path.canonicalize(), Path::new(out).canonicalize()) {
+                if source == destination {
+                    return fail(Exit::Usage, "the output image must differ from the disk-image source");
+                }
+            }
             let dev = FileDevice::open(path, false).map_err(map)?;
             let n =
                 usbwriter::raw::device_to_image(&dev, Path::new(out), *limit_bytes, progress, cancel).map_err(map)?;
@@ -303,4 +308,48 @@ fn windows_to_usb(tail: &[String], g: &Global, platform: &dyn Platform, o: &mut 
     let kind = UsbJobKind::Files { image, scheme: layout.to_string(), windows_installer: true };
     let (files, bytes, notes) = execute(&target, &kind, g, platform, o)?;
     Ok(report(o, "windows-to-usb", files, bytes, &notes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usb_read_from_disk_image_honors_the_optional_limit() {
+        let dir = std::env::temp_dir().join(format!("isofoundry-usb-read-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("source.img");
+        let output = dir.join("backup.img");
+        std::fs::write(&source, b"0123456789abcdef").unwrap();
+        let kind = UsbJobKind::ReadImage { out: output.to_string_lossy().into_owned(), limit_bytes: Some(6) };
+        let mut stdout = std::io::sink();
+        let mut stderr = std::io::sink();
+        let mut out = Out { out: &mut stdout, err: &mut stderr, json: false };
+
+        let (_, bytes, _) =
+            run_on_file_with(&source, &kind, &mut out, &Progress::default(), &CancelToken::new()).unwrap();
+
+        assert_eq!(bytes, 6);
+        assert_eq!(std::fs::read(&output).unwrap(), b"012345");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn usb_read_does_not_overwrite_its_disk_image_source() {
+        let dir = std::env::temp_dir().join(format!("isofoundry-usb-read-source-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("source.img");
+        let original = b"keep this disk image intact";
+        std::fs::write(&source, original).unwrap();
+        let kind = UsbJobKind::ReadImage { out: source.to_string_lossy().into_owned(), limit_bytes: Some(6) };
+        let mut stdout = std::io::sink();
+        let mut stderr = std::io::sink();
+        let mut out = Out { out: &mut stdout, err: &mut stderr, json: false };
+
+        assert!(run_on_file_with(&source, &kind, &mut out, &Progress::default(), &CancelToken::new()).is_err());
+        assert_eq!(std::fs::read(&source).unwrap(), original);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

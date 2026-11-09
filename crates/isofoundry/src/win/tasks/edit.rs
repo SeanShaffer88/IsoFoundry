@@ -6,6 +6,7 @@
 use super::super::gui;
 use super::super::taskwin::*;
 use if_image::edit::Edit;
+use if_image::fs::FsKind;
 use std::path::PathBuf;
 use std::sync::Arc;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
@@ -44,6 +45,8 @@ struct State {
     /// (path inside the image, is folder) in list order.
     entries: Vec<(String, bool)>,
     ops: Vec<Edit>,
+    fat: bool,
+    vhd: bool,
     shared: Option<Arc<JobShared>>,
     running: bool,
     close_when_done: bool,
@@ -65,6 +68,8 @@ pub fn open(owner: HWND) {
         image: None,
         entries: Vec::new(),
         ops: Vec::new(),
+        fat: false,
+        vhd: false,
         shared: None,
         running: false,
         close_when_done: false,
@@ -134,7 +139,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                     if let Some(p) = pick_open(
                         hwnd,
                         "Open an image to edit",
-                        "Disc images|*.iso;*.cue;*.ccd;*.chd;*.nrg;*.mds;*.bin;*.img|All files|*.*",
+                        "Disc images|*.iso;*.cue;*.ccd;*.chd;*.nrg;*.mds;*.bin;*.img;*.vhd|All files|*.*",
                     ) {
                         load(hwnd, p);
                     }
@@ -297,6 +302,8 @@ fn load(hwnd: HWND, path: PathBuf) {
             return;
         }
     };
+    let fat = v.fs.kind() == FsKind::Fat;
+    let vhd = path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("vhd"));
     let root = v.root();
     match v.walk(&root) {
         Ok(items) => {
@@ -312,6 +319,8 @@ fn load(hwnd: HWND, path: PathBuf) {
             let lbl = v.fs.label();
             set_text(s.label_edit, &lbl);
             s.image = Some(path);
+            s.fat = fat;
+            s.vhd = vhd;
             s.ops.clear();
             list_clear(s.ops_list);
             set_text(s.status, "Stage changes, then Save as… to write a new image.");
@@ -333,9 +342,15 @@ fn save(hwnd: HWND) {
         set_text(s.status, "No changes staged yet.");
         return;
     }
-    let initial = image.with_file_name("edited.iso");
+    let (initial, filter, extension) = if s.vhd {
+        (image.with_file_name("edited.vhd"), "Virtual hard disks (*.vhd)|*.vhd", "vhd")
+    } else if s.fat {
+        (image.with_file_name("edited.img"), "Raw disk images (*.img)|*.img", "img")
+    } else {
+        (image.with_file_name("edited.iso"), "ISO images (*.iso)|*.iso", "iso")
+    };
     let name = initial.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let Some(dest) = pick_save(hwnd, "Save edited image as", "ISO images (*.iso)|*.iso", "iso", &name) else {
+    let Some(dest) = pick_save(hwnd, "Save edited image as", filter, extension, &name) else {
         return;
     };
     let ops = s.ops.clone();

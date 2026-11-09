@@ -18,13 +18,18 @@ pub mod cue;
 pub mod disc;
 pub mod edit;
 pub mod eltorito;
+pub mod fat;
+mod fat_write;
 pub mod fs;
 pub mod iso9660;
 pub mod mds;
 pub mod nrg;
 pub mod source;
 pub mod udf;
+pub mod vhd;
+pub mod vhd_write;
 pub mod write;
+pub mod xiso;
 
 pub const SECTOR: usize = 2048;
 

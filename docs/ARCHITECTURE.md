@@ -1,6 +1,6 @@
 # Architecture
 
-Status: plan, pre-code. Every capability below is **Unverified** until a milestone marks it otherwise.
+Status: implementation overview. Hardware-dependent paths remain **Unverified**; see [LIMITATIONS.md](LIMITATIONS.md) for per-feature boundaries.
 
 ## 1. Process model
 
@@ -25,8 +25,8 @@ The helper exits when its job finishes. It accepts only typed job messages (serd
 | `isofoundry-helper` | elevated binary | windows |
 | `if-core` | job model, journal, settings, errors (stable codes) | serde, thiserror |
 | `if-drive` | `OpticalDrive` trait; IMAPI2 backend; MMC/SPTI backend; fake backend | windows |
-| `if-image` | read/write ISO9660/Joliet/UDF, BIN/CUE, CCD, raw IMG, CHD; readers for MDS, NRG, CDI | — |
-| `if-audio` | decode (Symphonia, MF), encode (FLAC, LAME dyn, Opus, Vorbis, MF AAC), CD-DA ripping, CUE, CD-Text | symphonia |
+| `if-image` | read/write ISO9660/Joliet/UDF and XDVDFS; read BIN/CUE, CCD, CHD, MDS and NRG; browse/edit supported FAT volumes in raw images and fixed/dynamic VHDs | — |
+| `if-audio` | decode (Symphonia, MF), encode (WAV, FLAC, LAME dyn, MF AAC), CD-DA ripping, CUE, CD-Text | symphonia |
 | `if-backup` | ZIP64 spanning, manifest, AES-256 | zip |
 | `usbwriter` | shared with WinISOPilot: enumerate, lock, partition (MBR/GPT), write image, boot files | windows |
 | `if-hash` | CRC32, MD5, SHA-1, SHA-256 streaming | — |
@@ -68,21 +68,21 @@ Every job follows: **plan → preview → confirm (proportional) → journal →
 
 ## 5. Image engine
 
-- Writers: ISO9660 (levels 1–3, Rock Ridge off), Joliet, UDF 1.02/1.50/2.01/2.50/2.60, hybrid ISO+UDF, El Torito (BIOS + UEFI).
-- Readers: above + BIN/CUE (multi-track, audio), CCD/IMG/SUB, MDS/MDF (v1 only, reverse-engineered: Unverified), NRG v1/v2, CDI, DMG (UDIF raw/zlib, HFS+ read-only browse), WIM (browse via wimlib or own reader: decide M1).
-- Edit image: load tree, add/remove/rename, rebuild to new file (never in place).
+- Writers: ISO9660 (levels 1–3, Rock Ridge off), Joliet, UDF 1.02/1.50/2.01/2.50/2.60, hybrid ISO+UDF, El Torito (BIOS + UEFI), XDVDFS, and supported FAT12/16/32 raw-volume editing to a separate image.
+- Readers: ISO/UDF, FAT12/16/32 (raw superfloppy or supported primary MBR partition, browse/extract), fixed/dynamic VHD 1.0 with supported FAT volumes, XDVDFS (browse/extract), BIN/CUE (multi-track, audio), CCD/IMG/SUB, MDS/MDF and NRG (read-only; unverified).
+- Edit image: load tree, add/remove/rename, rebuild supported ISO images or rewrite supported FAT volumes to a new file (never in place). VHD edits preserve the fixed/dynamic container type.
 - Convert: any readable → ISO / BIN-CUE / CCD / IMG / CHD.
 
 ## 6. Audio
 
 - Rip: MMC READ CD with C2 pointers when supported, multiple read passes, AccurateRip v1/v2 checksum (opt-in lookup), offsets from a local table, CUE + per-track or single file, CD-Text read.
 - Burn: DAO with CD-Text and custom gaps via MMC; TAO fallback via IMAPI2. ReplayGain/normalize optional.
-- Convert: batch decode/encode with tag copy.
+- Convert: batch decode/encode with tag copy. WAV, FLAC, MP3, and AAC/M4A encoding are supported; Opus/Vorbis encoding is not.
 
 ## 7. UI
 
 - Pure Win32 + Common Controls v6 (D-043): owner-drawn task buttons painted from `docs/design-tokens.md`, native menus, file dialogs and message boxes; dark title bar via `DWMWA_USE_IMMERSIVE_DARK_MODE`.
-- Main window: task grid (see mockup). Each task opens a modal-less task window; multiple tasks can queue.
+- Main window: task grid (see mockup). Each task opens a modal-less task window; several task windows can run independently, with no central job queue.
 - Accessibility: real `BUTTON` controls (owner-drawn) so UI Automation sees names and roles, tooltips on every control, full keyboard navigation, visible focus ring, no color-only states, text scaling via Windows text size, high-contrast mode switches to system colors.
 - Per-monitor DPI v2 manifest.
 
@@ -96,7 +96,7 @@ isofoundry copy-to-image --drive E: --out x.iso [--raw] [--subchannel]
 isofoundry copy-disc --from E: --to F: [--on-the-fly]
 isofoundry rip --drive E: --format flac --out <dir> [--cue] [--accuraterip]
 isofoundry burn-audio <files>... --drive E: [--cd-text]
-isofoundry convert-audio <files>... --to opus --out <dir>
+isofoundry convert-audio <files>... --to flac --out <dir>
 isofoundry convert-image <in> --to iso --out <out>
 isofoundry create-image <path>... --out x.iso [--fs udf] [--boot <img>]
 isofoundry extract <image> --out <dir>

@@ -21,5 +21,6 @@ pub mod erasewin;
 pub mod recoverwin;
 pub mod ripaudio;
 pub mod surfacetest;
+pub mod usbread;
 pub mod usbtools;
 pub mod winusb;

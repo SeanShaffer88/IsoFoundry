@@ -4,6 +4,12 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Added
+
+- XDVDFS/Xbox XISO support: identify, browse, and extract existing images, and create new XISOs with `create-image --fs xdvdfs` (or `xiso`). Existing XISOs are read-only; ISO-specific labels and boot-entry options are not supported.
+- FAT12/16/32 support for raw floppy and primary MBR-partitioned images: identify, browse, extract, and edit volumes while retaining boot/partition sectors. Fixed and dynamic VHD 1.0 containers with FAT volumes are also supported for browse, extract, and edit; new fixed or sparse dynamic VHDs can be written. Per-file timestamps and attributes reset on edit; GPT/extended partitions, VHDX, differencing VHDs, and exFAT are not supported.
+- **Save USB drive to image file** now has a task window with physical-disk and disk-image sources, optional byte limits, progress, and cancellable disk-image reads. Physical-disk reads continue until the helper finishes; the source is read-only and real USB hardware remains unverified.
+
 ## [1.0.1] - 2026-11-08
 
 Patch release: one robustness fix from the panic-path review, plus documentation. No feature changes.

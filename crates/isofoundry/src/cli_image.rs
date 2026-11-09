@@ -11,7 +11,7 @@ use serde_json::json;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf]\n\
+pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf|xdvdfs]\n\
        [--boot-bios IMG [--boot-load-sectors N] [--boot-info-table]] [--boot-efi IMG]\n\
                        Build an ISO from files and folders (one folder = its contents)\n\
   image-info IMAGE      Format, tracks, file systems, label and boot entries\n\
@@ -19,7 +19,7 @@ pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs 
                        Convert ISO, BIN/CUE, CCD, NRG, MDS, CHD (format from --to or extension)\n\
   edit-image IMAGE --out NEW [--add DIR=PATH] [--remove P] [--rename P=NAME]\n\
        [--mkdir P] [--label L]   Change an image and save it as a new file (options repeat, run in order)\n\
-  extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660]\n\
+  extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660|xdvdfs]\n\
                        Copy files out of an image (all, or the file/folder P)\n\
   checksum FILE [--algo crc32,md5,sha1,sha256] [--dat OUT.dat]\n\
                        Hash a file (default: all four); optionally write a .dat\n\
@@ -74,10 +74,12 @@ pub fn open_volume(path: &Path, prefer: Option<FsKind>) -> Result<Volume, (Exit,
 
 fn fs_kind(s: &str) -> Result<FsKind, String> {
     match s.to_ascii_lowercase().as_str() {
+        "fat" => Ok(FsKind::Fat),
         "udf" => Ok(FsKind::Udf),
         "joliet" => Ok(FsKind::Joliet),
         "iso9660" | "iso" => Ok(FsKind::Iso9660),
-        o => Err(format!("unknown file system {o} (udf, joliet, iso9660)")),
+        "xdvdfs" | "xiso" => Ok(FsKind::Xdvdfs),
+        o => Err(format!("unknown file system {o} (udf, joliet, iso9660, xdvdfs)")),
     }
 }
 
@@ -148,7 +150,7 @@ pub fn source_tree(sources: &[PathBuf]) -> Result<if_image::write::Node, (Exit, 
 }
 
 fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
-    use if_image::write::{build, BootImage, Options};
+    use if_image::write::{build, build_xiso, BootImage, Options};
     let a = parse(tail, &["out", "label", "fs", "boot-bios", "boot-efi", "boot-load-sectors"]).map_err(usage_err)?;
     let mut info_table = false;
     let pos: Vec<PathBuf> = a
@@ -166,15 +168,33 @@ fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
         .collect();
     let dest = PathBuf::from(a.get("out").ok_or_else(|| usage_err("missing --out FILE.iso"))?);
     let mut opts = Options::default();
+    let mut xdvdfs = false;
     if let Some(fs) = a.get("fs") {
-        let set: Vec<String> = fs.split(',').map(|x| x.trim().to_ascii_lowercase()).collect();
+        let set: Vec<String> = fs
+            .split(',')
+            .map(|x| x.trim().to_ascii_lowercase())
+            .map(|x| if x == "xiso" { "xdvdfs".to_string() } else { x })
+            .collect();
         for x in &set {
-            if !["iso9660", "joliet", "udf"].contains(&x.as_str()) {
+            if !["iso9660", "joliet", "udf", "xdvdfs"].contains(&x.as_str()) {
                 return Err(usage_err(format!("unknown file system {x}")));
             }
         }
+        xdvdfs = set.iter().any(|x| x == "xdvdfs");
+        if xdvdfs && set.len() != 1 {
+            return Err(usage_err("XDVDFS cannot be combined with ISO 9660, Joliet or UDF"));
+        }
         opts.joliet = set.iter().any(|x| x == "joliet");
         opts.udf = set.iter().any(|x| x == "udf");
+    }
+    if xdvdfs
+        && (a.get("label").is_some()
+            || a.get("boot-bios").is_some()
+            || a.get("boot-efi").is_some()
+            || a.get("boot-load-sectors").is_some()
+            || info_table)
+    {
+        return Err(usage_err("XDVDFS does not support volume labels or El Torito boot options"));
     }
     opts.label = a.get("label").map(str::to_string).unwrap_or_else(|| {
         match pos.as_slice() {
@@ -201,7 +221,8 @@ fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
         o.ok_text(&format!("would build {} from {} source(s)", dest.display(), pos.len()));
         return Ok(());
     }
-    let s = build(&root, opts, &dest, |_, _| true).map_err(image_err)?;
+    let s = if xdvdfs { build_xiso(&root, &dest, |_, _| true) } else { build(&root, opts, &dest, |_, _| true) }
+        .map_err(image_err)?;
     if o.json {
         o.ok_text(
             &json!({ "ok": true, "path": dest.display().to_string(), "bytes": s.sectors * 2048,
@@ -574,6 +595,72 @@ mod tests {
         p
     }
 
+    fn xiso_fixture() -> PathBuf {
+        let d = tmp("xiso");
+        std::fs::create_dir_all(&d).unwrap();
+        let mut image = vec![0u8; 64 * if_image::SECTOR];
+        let header = 32 * if_image::SECTOR;
+        image[header..header + 20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+        image[header + 20..header + 24].copy_from_slice(&40u32.to_le_bytes());
+        image[header + 24..header + 28].copy_from_slice(&(if_image::SECTOR as u32).to_le_bytes());
+        image[header + 0x7ec..header + 0x7ec + 20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+
+        let root = 40 * if_image::SECTOR;
+        image[root..root + if_image::SECTOR].fill(0xff);
+        image[root..root + 4].fill(0);
+        image[root + 4..root + 8].copy_from_slice(&42u32.to_le_bytes());
+        image[root + 8..root + 12].copy_from_slice(&(if_image::SECTOR as u32).to_le_bytes());
+        image[root + 12] = 0x10;
+        image[root + 13] = 3;
+        image[root + 14..root + 17].copy_from_slice(b"sub");
+
+        let child = 42 * if_image::SECTOR;
+        image[child..child + if_image::SECTOR].fill(0xff);
+        image[child..child + 4].fill(0);
+        image[child + 4..child + 8].copy_from_slice(&43u32.to_le_bytes());
+        image[child + 8..child + 12].copy_from_slice(&5u32.to_le_bytes());
+        image[child + 12] = 0x20;
+        image[child + 13] = 9;
+        image[child + 14..child + 23].copy_from_slice(b"hello.txt");
+        image[43 * if_image::SECTOR..43 * if_image::SECTOR + 5].copy_from_slice(b"hello");
+
+        let path = d.join("game.iso");
+        std::fs::write(&path, image).unwrap();
+        path
+    }
+
+    fn fat12_fixture(name: &str) -> PathBuf {
+        let d = tmp(name);
+        std::fs::create_dir_all(&d).unwrap();
+        let mut image = vec![0; 2880 * 512];
+        let boot = &mut image[..512];
+        boot[..3].copy_from_slice(&[0xeb, 0x3c, 0x90]);
+        boot[3..11].copy_from_slice(b"ISOFNDRY");
+        boot[11..13].copy_from_slice(&512u16.to_le_bytes());
+        boot[13] = 1;
+        boot[14..16].copy_from_slice(&1u16.to_le_bytes());
+        boot[16] = 2;
+        boot[17..19].copy_from_slice(&32u16.to_le_bytes());
+        boot[19..21].copy_from_slice(&2880u16.to_le_bytes());
+        boot[21] = 0xf0;
+        boot[22..24].copy_from_slice(&9u16.to_le_bytes());
+        boot[38] = 0x29;
+        boot[43..54].copy_from_slice(b"FAT CLI    ");
+        boot[510..512].copy_from_slice(&[0x55, 0xaa]);
+        for start in [512usize, 10 * 512] {
+            image[start..start + 5].copy_from_slice(&[0xf0, 0xff, 0xff, 0xff, 0x0f]);
+        }
+        let root = &mut image[19 * 512..21 * 512];
+        root[..11].copy_from_slice(b"HELLO   TXT");
+        root[11] = 0x20;
+        root[26..28].copy_from_slice(&2u16.to_le_bytes());
+        root[28..32].copy_from_slice(&5u32.to_le_bytes());
+        image[21 * 512..21 * 512 + 5].copy_from_slice(b"hello");
+        let path = d.join("fat.img");
+        std::fs::write(&path, image).unwrap();
+        path
+    }
+
     #[test]
     fn info_json() {
         let (code, out, _) = call(&["image-info", &fixture("boot.iso"), "--json"]);
@@ -596,6 +683,209 @@ mod tests {
         std::fs::remove_dir_all(d).unwrap();
         let (code, _, err) = call(&["extract", &fixture("udf.iso"), "--out", "x", "--path", "nope"]);
         assert_eq!(code, 11, "{err}");
+    }
+
+    #[test]
+    fn image_info_and_extract_support_xiso() {
+        let image = xiso_fixture();
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["XDVDFS"]));
+
+        let dest = image.parent().unwrap().join("extracted");
+        let (code, _, err) = call(&[
+            "extract",
+            image.to_str().unwrap(),
+            "--out",
+            dest.to_str().unwrap(),
+            "--path",
+            "sub",
+            "--fs",
+            "xdvdfs",
+        ]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn image_info_and_extract_support_fat() {
+        let image = fat12_fixture("fat12-read");
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["FAT"]));
+        assert_eq!(info["label"], "FAT CLI");
+
+        let dest = image.parent().unwrap().join("extracted");
+        let (code, _, err) = call(&[
+            "extract",
+            image.to_str().unwrap(),
+            "--out",
+            dest.to_str().unwrap(),
+            "--path",
+            "hello.txt",
+            "--fs",
+            "fat",
+        ]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn image_cli_supports_fixed_and_dynamic_vhds() {
+        let image = fat12_fixture("vhd-cli");
+        let raw = std::fs::read(&image).unwrap();
+        let dir = image.parent().unwrap();
+
+        for (index, dynamic) in [false, true].into_iter().enumerate() {
+            let source = dir.join(format!("source-{index}.vhd"));
+            let mut raw_source = if_image::source::MemSource(raw.clone());
+            if dynamic {
+                if_image::vhd_write::write_dynamic(&mut raw_source, &source, |_, _| true).unwrap();
+            } else {
+                if_image::vhd_write::write_fixed(&mut raw_source, &source, |_, _| true).unwrap();
+            }
+            let original = std::fs::read(&source).unwrap();
+
+            let (code, out, err) = call(&["image-info", source.to_str().unwrap(), "--json"]);
+            assert_eq!(code, 0, "{out}{err}");
+            let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+            assert_eq!(info["file_systems"], json!(["FAT"]));
+            assert_eq!(info["label"], "FAT CLI");
+
+            let extracted = dir.join(format!("extracted-{index}"));
+            let (code, out, err) = call(&[
+                "extract",
+                source.to_str().unwrap(),
+                "--out",
+                extracted.to_str().unwrap(),
+                "--path",
+                "hello.txt",
+                "--fs",
+                "fat",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(extracted.join("hello.txt")).unwrap(), b"hello");
+
+            let edited = dir.join(format!("edited-{index}.vhd"));
+            let (code, out, err) = call(&[
+                "edit-image",
+                source.to_str().unwrap(),
+                "--out",
+                edited.to_str().unwrap(),
+                "--rename",
+                "hello.txt=renamed.txt",
+                "--label",
+                "EDITED",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(&source).unwrap(), original);
+
+            let edited_files = dir.join(format!("edited-files-{index}"));
+            let (code, out, err) = call(&[
+                "extract",
+                edited.to_str().unwrap(),
+                "--out",
+                edited_files.to_str().unwrap(),
+                "--path",
+                "renamed.txt",
+                "--fs",
+                "fat",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(edited_files.join("renamed.txt")).unwrap(), b"hello");
+
+            std::fs::remove_dir_all(extracted).unwrap();
+            std::fs::remove_dir_all(edited_files).unwrap();
+            std::fs::remove_file(source).unwrap();
+            std::fs::remove_file(edited).unwrap();
+        }
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn edit_image_supports_fat_and_keeps_the_source() {
+        let image = fat12_fixture("fat12-edit");
+        let output = image.parent().unwrap().join("edited.img");
+        let before = std::fs::read(&image).unwrap();
+        let (code, out, err) = call(&[
+            "edit-image",
+            image.to_str().unwrap(),
+            "--out",
+            output.to_str().unwrap(),
+            "--rename",
+            "hello.txt=renamed.txt",
+            "--label",
+            "EDITED",
+        ]);
+        assert_eq!(code, 0, "{out}{err}");
+        assert_eq!(std::fs::read(&image).unwrap(), before);
+
+        let (code, out, err) = call(&["image-info", output.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["label"], "EDITED");
+
+        let extracted = image.parent().unwrap().join("edited-files");
+        let (code, _, err) =
+            call(&["extract", output.to_str().unwrap(), "--out", extracted.to_str().unwrap(), "--path", "renamed.txt"]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(extracted.join("renamed.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn create_image_can_build_xdvdfs() {
+        let d = tmp("create-xiso");
+        std::fs::create_dir_all(d.join("nested")).unwrap();
+        std::fs::write(d.join("nested").join("payload.bin"), b"Xbox").unwrap();
+        let image = d.join("game.iso");
+        let (code, out, err) =
+            call(&["create-image", d.to_str().unwrap(), "--out", image.to_str().unwrap(), "--fs", "xdvdfs"]);
+        assert_eq!(code, 0, "{out}{err}");
+
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["XDVDFS"]));
+
+        let dest = d.join("extracted");
+        let (code, _, err) =
+            call(&["extract", image.to_str().unwrap(), "--out", dest.to_str().unwrap(), "--fs", "xiso"]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("nested").join("payload.bin")).unwrap(), b"Xbox");
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn xdvdfs_create_rejects_unsupported_iso_options() {
+        let d = tmp("xiso-options");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("payload.bin"), b"Xbox").unwrap();
+        let output = d.join("game.iso");
+        let (code, _, err) =
+            call(&["create-image", d.to_str().unwrap(), "--out", output.to_str().unwrap(), "--fs", "xdvdfs,joliet"]);
+        assert_eq!(code, 2, "{err}");
+        assert!(err.contains("cannot be combined"));
+
+        let (code, _, err) = call(&[
+            "create-image",
+            d.to_str().unwrap(),
+            "--out",
+            output.to_str().unwrap(),
+            "--fs",
+            "xdvdfs",
+            "--label",
+            "GAMES",
+        ]);
+        assert_eq!(code, 2, "{err}");
+        assert!(err.contains("does not support volume labels"));
+        assert!(!output.exists());
+        std::fs::remove_dir_all(d).unwrap();
     }
 
     #[test]
