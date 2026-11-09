@@ -47,6 +47,15 @@ fn rejects_xdvdfs_root_extent_outside_image() {
 }
 
 #[test]
+fn rejects_unreasonable_xdvdfs_directory_size() {
+    let mut source = xiso_with_one_file();
+    let root_size_offset = 32 * SECTOR + 24;
+    source.0[root_size_offset..root_size_offset + 4].copy_from_slice(&(64 * 1024 * 1024u32 + 1).to_le_bytes());
+
+    assert!(Volume::open(Box::new(source), None).is_err());
+}
+
+#[test]
 fn rejects_invalid_xdvdfs_filename() {
     let mut source = xiso_with_one_file();
     let filename_offset = 40 * SECTOR + 14;
@@ -109,4 +118,40 @@ fn lists_empty_xdvdfs_directory() {
     let directory = volume.lookup("sub").unwrap();
 
     assert!(volume.list(&directory).unwrap().is_empty());
+}
+
+#[test]
+fn bounds_recursive_walks_through_cyclic_xdvdfs_directories() {
+    let mut source = xiso_with_one_file();
+    let root = 40 * SECTOR;
+    source.0[root + 17..root + SECTOR].fill(0xff);
+    source.0[root + 4..root + 8].copy_from_slice(&42u32.to_le_bytes());
+    source.0[root + 8..root + 12].copy_from_slice(&(SECTOR as u32).to_le_bytes());
+    source.0[root + 12] = 0x10;
+    source.0[root + 13] = 3;
+    source.0[root + 14..root + 17].copy_from_slice(b"sub");
+
+    let child = 42 * SECTOR;
+    source.0[child..child + SECTOR].fill(0xff);
+    source.0[child..child + 4].fill(0);
+    source.0[child + 4..child + 8].copy_from_slice(&40u32.to_le_bytes());
+    source.0[child + 8..child + 12].copy_from_slice(&(SECTOR as u32).to_le_bytes());
+    source.0[child + 12] = 0x10;
+    source.0[child + 13] = 4;
+    source.0[child + 14..child + 18].copy_from_slice(b"back");
+
+    let mut volume = Volume::open(Box::new(source), None).unwrap();
+    let root = volume.root();
+
+    assert!(volume.walk(&root).is_err());
+}
+
+#[test]
+fn refuses_to_edit_xdvdfs_images() {
+    let path = std::env::temp_dir().join(format!("if-xiso-edit-{}.iso", std::process::id()));
+    std::fs::write(&path, xiso_with_one_file().0).unwrap();
+    let result = if_image::edit::Project::open(&path);
+    std::fs::remove_file(path).unwrap();
+
+    assert!(matches!(result, Err(if_image::Error::Format(message)) if message.contains("read-only")));
 }

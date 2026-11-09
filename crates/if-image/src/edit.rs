@@ -62,6 +62,9 @@ impl Project {
     pub fn open(image: &Path) -> Result<Project> {
         let (_, src) = container::open(image)?;
         let mut v = Volume::open(src, None)?;
+        if v.fs.kind() == FsKind::Xdvdfs {
+            return bad("XDVDFS images are read-only and cannot be edited");
+        }
         let mut warnings = Vec::new();
         let label = v.fs.label();
         let joliet = v.found.contains(&FsKind::Joliet) || v.found.contains(&FsKind::Udf);

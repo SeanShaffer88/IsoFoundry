@@ -17,24 +17,24 @@
 **Files likely touched:** `docs/roadmap.md`, `docs/references.md` (only after evidence is established)
 **Estimated scope:** Small
 
-## Task 2: Reading and validating XDVDFS volumes — In progress
+## Task 2: Reading and validating XDVDFS volumes — Done
 
 **Description:** Add a pure-Rust XDVDFS reader behind the image engine's filesystem/source abstractions, including bounded directory traversal and file extent reads.
 
 **Acceptance criteria:**
-- [ ] Valid XISO fixtures expose volume metadata, directory entries, and file contents.
-- [ ] Cycles, invalid extents, truncated images, and unreasonable directory sizes return errors without panic or unbounded allocation.
-- [ ] Filesystem name/label and read-only status are exposed to callers.
+- [x] Valid XISO fixtures expose filesystem identity, directory entries, and file contents.
+- [x] Invalid extents, truncated images, and unreasonable directory sizes are rejected before unbounded reads or allocation; recursive walking is bounded by the shared filesystem depth limit.
+- [x] Filesystem name/label are available through the shared filesystem API, and editing XDVDFS is explicitly rejected as read-only.
 
 **Verification:**
-- [ ] Add unit tests for valid, nested, empty, and malformed XDVDFS fixtures.
-- [ ] Run the focused `if-image` tests.
+- [x] Add integration tests for valid, nested, empty, and malformed XDVDFS fixtures.
+- [x] Run focused and complete `if-image` test suites, formatting, and Clippy.
 
 **Dependencies:** Task 1
 **Files likely touched:** `crates/if-image/src/xiso.rs`, `crates/if-image/src/fs.rs`, `crates/if-image/src/lib.rs`, `crates/if-image/tests/read.rs`
 **Estimated scope:** Medium
 
-## Task 3: Exposing XISO browse and extraction in CLI and GUI
+## Task 3: Exposing XISO browse and extraction in CLI and GUI — In progress
 
 **Description:** Route XISO images through image-info, browse, and extract flows while keeping XISO-specific metadata visible and preserving existing formats.
 
