@@ -958,9 +958,9 @@ unsafe extern "system" fn button_subclass(
 
 enum Action {
     None,
-    Info(String),
     NotYet(String, &'static str, &'static str),
     OpenTask(&'static str),
+    OpenUsbRead,
     VariantMenu(usize),
     Exit,
     OpenData,
@@ -1071,9 +1071,7 @@ fn on_command(hwnd: HWND, id: u16) {
         x if x >= ID_VARIANT => match variant_list().get((x - ID_VARIANT) as usize) {
             Some((_, v)) if v.id == "backup-restore" => Action::OpenTask("backup-restore"),
             Some((_, v)) if v.id == "usb-image-to-usb" => Action::OpenTask("bootable-usb"),
-            Some((_, v)) if v.id == "usb-usb-to-image" => Action::Info(
-                "Copy a USB stick to an image file from the command line:\n\nisofoundry usb read --disk N --out FILE\n\nA window for it is planned after 1.0; the copy itself works today.".to_string(),
-            ),
+            Some((_, v)) if v.id == "usb-usb-to-image" => Action::OpenUsbRead,
             Some((_, v)) => Action::NotYet(
                 strings::variant_label(v.id).trim_end_matches('…').to_string(),
                 v.milestone.label(),
@@ -1089,9 +1087,6 @@ fn on_command(hwnd: HWND, id: u16) {
 fn run_action(hwnd: HWND, action: Action) {
     match action {
         Action::None => {}
-        Action::Info(text) => {
-            message(hwnd, &text, MB_ICONINFORMATION);
-        }
         Action::Exit => {
             // SAFETY: closing our own window.
             unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };
@@ -1127,6 +1122,10 @@ fn run_action(hwnd: HWND, action: Action) {
                 "backup-restore" => super::tasks::backupwin::open_restore(hwnd),
                 _ => {}
             }
+        }
+        Action::OpenUsbRead => {
+            with_app(|a| a.log.info("task opened: Save USB drive to image file"));
+            super::tasks::usbread::open(hwnd);
         }
         Action::VariantMenu(i) => variant_menu(hwnd, i),
         Action::OpenData => {

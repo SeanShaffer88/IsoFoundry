@@ -143,6 +143,23 @@ mod tests {
     }
 
     #[test]
+    fn device_to_image_replaces_an_existing_output() {
+        let dir = std::env::temp_dir().join(format!("usbw-replace-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let device_path = dir.join("device.img");
+        let mut dev = FileDevice::create(&device_path, 4096).unwrap();
+        dev.write_at(0, b"new image").unwrap();
+
+        let out = dir.join("backup.img");
+        std::fs::write(&out, b"old image").unwrap();
+        device_to_image(&dev, &out, Some(9), &Progress::default(), &CancelToken::new()).unwrap();
+
+        assert_eq!(std::fs::read(&out).unwrap(), b"new image");
+        assert!(!dir.join("backup.img.part").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn image_too_large_refused() {
         let dir = std::env::temp_dir().join(format!("usbw-raw2-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

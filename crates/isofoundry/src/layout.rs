@@ -118,11 +118,12 @@ pub fn compute(client_w: i32, client_h: i32, dpi: u32) -> Layout {
 
     let mut cells = Vec::new();
     for (r, row) in GRID.iter().enumerate() {
+        let span_row = row[0].is_some() && row[1].is_none();
         for (c, slot) in row.iter().enumerate() {
             let Some(task) = slot else { continue };
-            let left = inner_l + c as i32 * (col_w + col_gap);
+            let left = if span_row { inner_l } else { inner_l + c as i32 * (col_w + col_gap) };
             // The right column absorbs the odd pixel so both edges line up.
-            let width = if c == 1 { inner_r - left } else { col_w };
+            let width = if span_row || c == 1 { inner_r - left } else { col_w };
             let top = first + r as i32 * row_step;
             let cell = if task.variants.is_empty() {
                 Cell { row: r, col: c, main: Rect::new(left, top, width, row_h), arrow: None }
@@ -197,6 +198,18 @@ mod tests {
         // Row height never stretches; the footer takes the extra height.
         assert_eq!(big.cells[0].main.height(), small.cells[0].main.height());
         assert!(big.footer.height() > small.footer.height());
+    }
+
+    #[test]
+    fn lone_bottom_left_task_stretches_across_the_grid() {
+        let layout = compute(816, 640, 96);
+        let bottom = layout.cells.iter().find(|cell| cell.row == GRID.len() - 1).unwrap();
+        let inner_left = layout.group.left + px(GROUP_PAD_X, 96);
+        let inner_right = layout.group.right - px(GROUP_PAD_X, 96);
+
+        assert_eq!(bottom.col, 0);
+        assert_eq!(bottom.main.left, inner_left);
+        assert_eq!(bottom.arrow.unwrap().right, inner_right);
     }
 
     #[test]
