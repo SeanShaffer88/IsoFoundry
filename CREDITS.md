@@ -9,6 +9,9 @@
 - [windows2usb](https://github.com/ValdikSS/windows2usb) (Apache-2.0): Windows USB layout modes, write-through progress.
 - [MultiOS-USB](https://github.com/Mexit/MultiOS-USB) (GPL-3.0) and [GLIM](https://github.com/thias/glim) (public domain configs): multiboot USB design. GPL code can't be copied into this MIT project.
 - [Lufus](https://github.com/Hogjects/Lufus) (MIT): UI reference.
+- [Ventoy](https://www.ventoy.net/en/index.html) (GPL-3.0): multiboot USB design reference. GPL code can't be copied into this MIT project.
+- [YUMI](https://pendrivelinux.com/yumi-multiboot-usb-creator/), [Universal USB Installer](https://pendrivelinux.com/universal-usb-installer-easy-as-1-2-3/), [XBOOT](https://pendrivelinux.com/xboot-multiboot-iso-usb-creator/), [LiveUSB Install](https://pendrivelinux.com/liveusb-install-live-usb-creator/) (licenses not stated on their pages): multiboot and live-USB creator UX references; ideas only.
+- [balenaEtcher](https://github.com/balena-io/etcher) (Apache-2.0): write-safety and verify-after-write reference.
 - [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) (MIT): auto-action on disc insert, parallel drives, notifications.
 - [TotalImage](https://github.com/TotalImage/TotalImage) (MIT): image editor reference.
 - [Redumper GUI](https://github.com/Deterous/Redumper-GUI) (GPL-3.0): preservation dumping UI reference.

@@ -56,3 +56,14 @@ Primary sources to check before implementing or changing behavior (per the dev c
 - https://learn.microsoft.com/windows/apps · https://learn.microsoft.com/windows/win32/winprog/windows-api · Windows hardware test https://learn.microsoft.com/windows-hardware/test
 - Wine https://www.winehq.org · ReactOS https://www.reactos.org
 - Q&A: https://stackoverflow.com · https://serverfault.com · https://superuser.com
+
+## USB creators and multiboot tools (ideas only, no code copied)
+
+Checked 2026-11-08 from each project's own page. Licenses marked "not stated" were not named on the page — check before borrowing anything beyond ideas.
+
+- Ventoy: https://www.ventoy.net/en/index.html — copy ISO/WIM/IMG/VHD(x)/EFI files onto the stick and pick from a boot menu; BIOS, UEFI (incl. Secure Boot via key enrollment), ARM64; persistence; files over 4 GB; auto-install. Open source (GPL-3.0). Reference for the multiboot design.
+- YUMI: https://pendrivelinux.com/yumi-multiboot-usb-creator/ — multiboot USB (Windows installers, Linux, rescue tools); YUMI Py (Windows + Linux, exFAT, persistence) and YUMI exFAT (Windows) both boot through Ventoy. Open source; license not stated.
+- Universal USB Installer: https://pendrivelinux.com/universal-usb-installer-easy-as-1-2-3/ — ISO → bootable USB; Standard, GRUB2 and MEMDISK boot modes; persistence for some Linux distros; BIOS + UEFI. Open source; license not stated.
+- XBOOT: https://pendrivelinux.com/xboot-multiboot-iso-usb-creator/ — drag-and-drop multiboot USB/ISO builder with GRUB or Syslinux and a built-in QEMU test. BIOS only (no UEFI/Secure Boot), FAT32 4 GB file limit, unmaintained since 2011. Design reference only; license not stated.
+- LiveUSB Install: https://pendrivelinux.com/liveusb-install-live-usb-creator/ — Python live-Linux USB creator (dd-style write, editable syslinux.cfg, WinGrub mode); no persistence; no longer actively maintained. Open source; license not stated.
+- balenaEtcher: https://github.com/balena-io/etcher (Apache-2.0) — image flasher built around safety (guards against writing to system drives) and verify-after-write. Reference for the target-safety and verification UX.
