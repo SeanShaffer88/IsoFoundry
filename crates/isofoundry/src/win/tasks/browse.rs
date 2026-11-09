@@ -87,7 +87,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                     if let Some(p) = pick_open(
                         hwnd,
                         "Open an image",
-                        "Disc images|*.iso;*.cue;*.ccd;*.chd;*.nrg;*.mds;*.bin;*.img|All files|*.*",
+                        "Disc images|*.iso;*.cue;*.ccd;*.chd;*.nrg;*.mds;*.bin;*.img;*.vhd|All files|*.*",
                     ) {
                         load(hwnd, p);
                     }

@@ -629,8 +629,8 @@ mod tests {
         path
     }
 
-    fn fat12_fixture() -> PathBuf {
-        let d = tmp("fat12");
+    fn fat12_fixture(name: &str) -> PathBuf {
+        let d = tmp(name);
         std::fs::create_dir_all(&d).unwrap();
         let mut image = vec![0; 2880 * 512];
         let boot = &mut image[..512];
@@ -711,7 +711,7 @@ mod tests {
 
     #[test]
     fn image_info_and_extract_support_fat() {
-        let image = fat12_fixture();
+        let image = fat12_fixture("fat12-read");
         let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
         assert_eq!(code, 0, "{err}");
         let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
@@ -731,6 +731,110 @@ mod tests {
         ]);
         assert_eq!(code, 0, "{err}");
         assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn image_cli_supports_fixed_and_dynamic_vhds() {
+        let image = fat12_fixture("vhd-cli");
+        let raw = std::fs::read(&image).unwrap();
+        let dir = image.parent().unwrap();
+
+        for (index, dynamic) in [false, true].into_iter().enumerate() {
+            let source = dir.join(format!("source-{index}.vhd"));
+            let mut raw_source = if_image::source::MemSource(raw.clone());
+            if dynamic {
+                if_image::vhd_write::write_dynamic(&mut raw_source, &source, |_, _| true).unwrap();
+            } else {
+                if_image::vhd_write::write_fixed(&mut raw_source, &source, |_, _| true).unwrap();
+            }
+            let original = std::fs::read(&source).unwrap();
+
+            let (code, out, err) = call(&["image-info", source.to_str().unwrap(), "--json"]);
+            assert_eq!(code, 0, "{out}{err}");
+            let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+            assert_eq!(info["file_systems"], json!(["FAT"]));
+            assert_eq!(info["label"], "FAT CLI");
+
+            let extracted = dir.join(format!("extracted-{index}"));
+            let (code, out, err) = call(&[
+                "extract",
+                source.to_str().unwrap(),
+                "--out",
+                extracted.to_str().unwrap(),
+                "--path",
+                "hello.txt",
+                "--fs",
+                "fat",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(extracted.join("hello.txt")).unwrap(), b"hello");
+
+            let edited = dir.join(format!("edited-{index}.vhd"));
+            let (code, out, err) = call(&[
+                "edit-image",
+                source.to_str().unwrap(),
+                "--out",
+                edited.to_str().unwrap(),
+                "--rename",
+                "hello.txt=renamed.txt",
+                "--label",
+                "EDITED",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(&source).unwrap(), original);
+
+            let edited_files = dir.join(format!("edited-files-{index}"));
+            let (code, out, err) = call(&[
+                "extract",
+                edited.to_str().unwrap(),
+                "--out",
+                edited_files.to_str().unwrap(),
+                "--path",
+                "renamed.txt",
+                "--fs",
+                "fat",
+            ]);
+            assert_eq!(code, 0, "{out}{err}");
+            assert_eq!(std::fs::read(edited_files.join("renamed.txt")).unwrap(), b"hello");
+
+            std::fs::remove_dir_all(extracted).unwrap();
+            std::fs::remove_dir_all(edited_files).unwrap();
+            std::fs::remove_file(source).unwrap();
+            std::fs::remove_file(edited).unwrap();
+        }
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn edit_image_supports_fat_and_keeps_the_source() {
+        let image = fat12_fixture("fat12-edit");
+        let output = image.parent().unwrap().join("edited.img");
+        let before = std::fs::read(&image).unwrap();
+        let (code, out, err) = call(&[
+            "edit-image",
+            image.to_str().unwrap(),
+            "--out",
+            output.to_str().unwrap(),
+            "--rename",
+            "hello.txt=renamed.txt",
+            "--label",
+            "EDITED",
+        ]);
+        assert_eq!(code, 0, "{out}{err}");
+        assert_eq!(std::fs::read(&image).unwrap(), before);
+
+        let (code, out, err) = call(&["image-info", output.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["label"], "EDITED");
+
+        let extracted = image.parent().unwrap().join("edited-files");
+        let (code, _, err) =
+            call(&["extract", output.to_str().unwrap(), "--out", extracted.to_str().unwrap(), "--path", "renamed.txt"]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(extracted.join("renamed.txt")).unwrap(), b"hello");
         std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
     }
 

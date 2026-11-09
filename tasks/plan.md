@@ -1,91 +1,92 @@
-# Implementation Plan: IsoFoundry 1.x Roadmap Features
+# Implementation Plan: IsoFoundry Capability Expansion
 
 ## Overview
 
-Complete the four explicitly selected 1.x roadmap features: multiboot USB, FAT/VHD image editing, Xbox XISO, and Spanish UI. Keep existing product behavior and the in-progress USB-to-image GUI changes intact. Deliver each feature through the appropriate GUI and CLI surfaces, with fixtures, focused tests, documentation, and software-only boot verification. Do not claim physical-hardware verification.
+Deliver the user's requested disc, image, archive, and USB capabilities in tested vertical slices, guided by the approved [capability map](../CAPABILITY-MAP.md). Preserve completed XISO/FAT work and the in-progress USB-to-image changes. The next implementation slice is fixed/dynamic VHD support for FAT12/16/32. The expanded catalog is staged; no feature is called complete until its user-facing path, focused tests, documentation, and software-only verification are in place.
 
 ## Scope and assumptions
 
-- Multiboot USB supports multiple Linux ISO loopback entries and Windows/WinPE ISO or WIM boot entries on BIOS and UEFI. The app manages installation, adding/removing payloads, and per-entry options. Secure Boot support must use distributable signed components or document a clearly bounded limitation; users must not be told to disable Secure Boot as the default path.
-- FAT image editing supports FAT12/16/32 floppy and partition images. VHD support means legacy fixed and dynamic VHD containers containing supported FAT volumes. VHDX support is not included unless existing formats or implementation evidence require it.
-- Xbox XISO means XDVDFS filesystem support for opening, listing, extracting, and creating images. No executable patching, decryption, or copy-protection circumvention.
-- Spanish UI covers all user-facing GUI strings, including dialogs, menus, errors and task windows. CLI output and technical documentation remain English unless needed to explain language selection.
-- Physical hardware tests are excluded. Unit/integration fixtures and QEMU boot checks remain required where applicable.
+- The first `image-foundation` module spec is approved: fixed and dynamic VHD 1.0 containing FAT12/16/32, using the existing image engine and GUI/CLI paths. VHDX editing, differencing chains, and other filesystems are outside this module.
+- The previously approved XISO, FAT/VHD, multiboot USB, and Spanish UI work remains in scope.
+- Hardware tests are not required. Use fixtures, simulated or image-backed devices, and QEMU where applicable; clearly mark hardware-dependent behavior unverified.
+- Do not implement copy-protection circumvention or claim support for encrypted commercial media.
+- Formatting, disc erasure, and raw writes require explicit target identification, proportionate confirmation, cancellation/error handling, and safe output behavior.
+- New dependencies, broad format support, and OS-dependent operations require evidence and a per-module spec before implementation.
 
 ## Architecture decisions
 
-- Extend `if-image`'s filesystem/source abstractions for FAT and XDVDFS rather than introducing parallel app-only parsers. Keep format writers pure Rust and platform-independent where practical.
-- VHD parsing/writing is a container layer over byte-addressable storage; validate bounds, checksums, block maps and metadata before exposing a filesystem.
-- Multiboot USB writes continue through the existing guarded USB device/helper path. Disk-image/VHDX test targets stay behind the current explicit development gate.
-- Preserve the app's offline-by-default behavior. Any bootloader assets must have documented provenance and redistribution terms; no runtime download is required for ordinary use.
-- Use a Spanish resource catalog with English fallback, explicit language selection, and completeness tests. Avoid scattering translated literals through Win32 window procedures.
+- Keep parsing, filesystem integration, and image editing in the platform-independent `if-image` crate; GUI and CLI use the shared implementation.
+- Validate all VHD offsets, checksums, block maps, lengths, and arithmetic before exposing a filesystem or allocating based on untrusted metadata.
+- Always write edits to a separate destination; never modify a source image in place or overwrite an existing destination.
+- Keep USB writes behind the existing guarded USB/helper path. Preserve the existing USB-to-image worktree changes and `.serena/` data.
+- The approved capability map defines module boundaries and dependency order. Each remaining module receives its own spec and task breakdown before implementation.
 
 ## Task List
 
-### Phase 0: Baseline and format investigation
-- [ ] Task 1: Establish preserved baseline and validate third-party boot assets.
-
-### Checkpoint: Baseline
-- [ ] Existing working-tree changes are preserved and baseline workspace checks pass.
-- [ ] XISO, FAT/VHD, and multiboot format/asset decisions are supported by repository evidence and documented references.
+### Phase 0: Preserved baseline
+- [x] Task 1: Record the existing workspace state and establish repository/asset constraints.
 
 ### Phase 1: Xbox XISO
 - [x] Task 2: Read and validate XDVDFS volumes.
 - [x] Task 3: Expose XISO browse and extraction in CLI and GUI.
 - [x] Task 4: Create XISO images and add end-to-end coverage.
 
-### Checkpoint: XISO
-- [x] Fixture images list, extract and recreate files with byte-for-byte verification.
-- [x] CLI and GUI workflows are documented and tested without physical hardware.
-
-### Phase 2: FAT and VHD image editing
+### Phase 2: Image foundation — FAT and VHD
 - [x] Task 5: Read FAT12/16/32 volumes and locate supported partitions.
 - [x] Task 6: Browse and extract FAT images through existing image workflows.
-- [ ] Task 7: Edit FAT images and save safely as a new image.
-- [ ] Task 8: Read and write fixed/dynamic VHD containers with validated metadata.
-- [ ] Task 9: Integrate VHD-contained FAT editing and verify round trips.
+- [x] Task 7: Edit FAT images and save safely as a new image.
+- [x] Task 8: Parse fixed/dynamic VHD containers and expose bounded logical reads.
+- [x] Task 9: Write fixed/dynamic VHD containers safely to new files.
+- [x] Task 10: Browse and extract FAT volumes inside supported VHDs.
+- [x] Task 11: Edit FAT volumes inside VHDs through CLI and GUI.
+- [x] Task 12: Document VHD support and limits.
 
-### Checkpoint: FAT/VHD
-- [ ] FAT12/16/32 fixture images and fixed/dynamic VHD fixtures browse, extract, edit and reopen correctly.
-- [ ] Original images remain unchanged; malformed and oversized inputs fail cleanly.
+### Checkpoint: Image foundation
+- [x] Fixed/dynamic VHD fixtures with supported FAT volumes browse, extract, edit, and reopen correctly.
+- [x] Malformed/unsupported inputs fail cleanly; source images remain unchanged and destination collisions are preserved.
+- [x] Focused `if-image` and app tests, Clippy, formatting, and app build pass.
+- [x] README and limitations document VHD variants and exclusions.
 
-### Phase 3: Multiboot USB
-- [ ] Task 10: Prove the bootloader/asset path and reproducible BIOS/UEFI QEMU test setup.
-- [ ] Task 11: Install a multiboot layout through the guarded USB engine.
-- [ ] Task 12: Manage ISO/WIM payloads and persistent per-entry boot options.
-- [ ] Task 13: Integrate multiboot management in the Windows task window and CLI.
-- [ ] Task 14: Verify boot scenarios and document supported payloads and Secure Boot status.
+### Phase 3: USB creation and multiboot
+- [ ] Task 13: Prove the multiboot boot chain, asset terms, and QEMU test path.
+- [ ] Task 14: Install multiboot layouts through the guarded USB engine.
+- [ ] Task 15: Manage ISO/WIM payloads and persistent boot options.
+- [ ] Task 16: Integrate multiboot management in the Windows app and CLI.
+- [ ] Task 17: Verify and document supported multiboot scenarios.
 
-### Checkpoint: Multiboot
-- [ ] VHDX-backed install/manage operations pass safety tests; supported BIOS and UEFI scenarios boot under QEMU.
-- [ ] No destructive physical-device operation is used for testing; Secure Boot claims match the verified asset chain.
+### Checkpoint: USB creation
+- [ ] File-backed target install/manage flows pass safety, cancellation, and recovery tests.
+- [ ] Supported BIOS/UEFI scenarios boot in QEMU; hardware behavior remains explicitly unverified.
+- [ ] Secure Boot claims reflect the verified boot chain and asset terms.
 
-### Phase 4: Spanish UI
-- [ ] Task 15: Add locale/resource loading and language selection with English fallback.
-- [ ] Task 16: Localize shared menus, task catalog, and core dialogs.
-- [ ] Task 17: Localize task windows and operational messages in bounded groups.
-- [ ] Task 18: Enforce catalog completeness and verify the Spanish UI workflow.
+### Phase 4: Remaining image and media capabilities
 
-### Checkpoint: Spanish UI
-- [ ] Every user-facing GUI string has an English source and Spanish translation.
-- [ ] English remains the default/fallback; both locales render through the same GUI paths.
+After image foundation and USB creation, specify and implement the approved-map modules in dependency order: `image-operations`, `archive-formats`, `optical-media`, and `virtual-mounting`; then `media-conversion` (which depends on optical media). This scope includes practical image create/extract/edit/convert/verify operations, useful supported compressed/container formats, supported optical read/write workflows, virtual mounting, and unprotected-media extraction/conversion. Each module gets its own reviewed spec and focused task list before implementation; format breadth and OS-dependent behavior are evidence-gated.
+
+### Phase 5: Workflow surfaces and localization
+- [ ] Task 18: Add locale resources and language selection with English fallback.
+- [ ] Task 19: Localize shared menus, task catalog, and core dialogs.
+- [ ] Task 20: Localize task windows in bounded groups.
+- [ ] Task 21: Enforce localization completeness and final acceptance.
+
+CLI/scripting, batch queues, portable operation, diagnostics, and capability/limitation documentation are part of `workflow-surfaces`. Their scope and dependencies will be specified after the underlying feature modules exist, so the UI/catalog coverage is complete rather than partial.
 
 ### Checkpoint: Complete
-- [ ] All four selected feature acceptance criteria are met.
+- [ ] Every approved module is end-to-end implemented, focused-tested, documented, and accurately bounded.
 - [ ] Workspace formatting, tests, Clippy, and application build pass.
-- [ ] README, roadmap, limitations, and changelog accurately describe support and verification.
+- [ ] No physical-hardware verification is claimed.
 
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Secure Boot-compatible multiboot assets may have restrictive distribution terms or key-enrollment constraints. | High | Validate provenance/license and the actual trust chain before choosing the bootloader; do not make unsupported Secure Boot claims. |
-| Dynamic VHD and FAT partition edge cases can cause corruption or out-of-bounds reads. | High | Keep parsers read-only until validation is complete; test malformed metadata, bounds, and atomic new-file writes. |
-| Booting arbitrary Linux ISOs by loopback is not universal. | High | Define a tested compatibility set and expose/document per-entry options rather than claiming every ISO works. |
-| XDVDFS and FAT name/metadata semantics differ from ISO editing. | Medium | Preserve raw names and metadata where feasible; add adversarial fixtures and explicit unsupported-feature errors. |
-| UI strings are spread across many Win32 task windows. | High | Centralize string lookup and migrate windows in small groups with a coverage test preventing untranslated literals. |
-| Existing USB-to-image changes are uncommitted in this worktree. | High | Treat them and `.serena/` as user/worktree state; do not reset, overwrite, or clean them up. |
+| Dynamic VHD metadata or FAT layout edge cases can cause unsafe reads or corruption. | High | Use bounded parsing and checked arithmetic; test malformed metadata; write only to a separate atomic output. |
+| Multiboot assets may have restrictive distribution terms or key-enrollment constraints. | High | Validate provenance/license and the actual trust chain before choosing assets; avoid unsupported Secure Boot claims. |
+| Loopback boot support varies among Linux and Windows images. | High | Define a tested compatibility set and document unsupported payloads rather than promise universal booting. |
+| Destructive disk or optical operations can erase user data. | High | Preserve existing target safety checks and require clear target identity and proportionate confirmation on every route. |
+| The feature catalog includes proprietary formats, protected media, hardware-specific operations, and platform-specific APIs. | High | Exclude copy-protection circumvention; implement only formats and operations with reliable evidence; document host/hardware limits. |
+| Existing USB-to-image changes and `.serena/` are uncommitted. | High | Preserve them; do not reset, overwrite, or stage them with unrelated feature commits. |
 
 ## Open questions
 
-- None blocking at planning time. The plan uses the supported-format and Secure Boot assumptions above; revise only if format research disproves them.
+- No blocking questions for the approved VHD module. Per-module specifications remain approval-gated as described in `CAPABILITY-MAP.md`.

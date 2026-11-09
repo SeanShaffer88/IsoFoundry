@@ -18,6 +18,7 @@ pub enum Format {
     Nrg,
     Mds,
     Chd,
+    Vhd,
     /// A sheetless raw `.bin`/`.img` of 2352-byte sectors.
     RawBin,
 }
@@ -31,6 +32,7 @@ impl Format {
             Format::Nrg => "Nero NRG",
             Format::Mds => "Alcohol MDS/MDF",
             Format::Chd => "MAME CHD",
+            Format::Vhd => "Virtual Hard Disk (VHD)",
             Format::RawBin => "raw 2352-byte sectors",
         }
     }
@@ -83,6 +85,7 @@ pub fn detect(path: &Path) -> Result<(Format, PathBuf)> {
             None => return bad("an .mdf needs its .mds descriptor next to it"),
         },
         "chd" => (Format::Chd, p),
+        "vhd" => (Format::Vhd, p),
         "bin" | "img" => {
             if let Some(c) = sibling(path, "cue") {
                 (Format::BinCue, c)
@@ -127,6 +130,7 @@ pub fn open_image(path: &Path) -> Result<(Format, Image)> {
     let disc = |d: Disc| Image::Cd(Box::new(DiscReader::new(d)));
     let img = match f {
         Format::Iso => Image::Sectors(Box::new(IsoFile::open(&p)?)),
+        Format::Vhd => Image::Sectors(Box::new(crate::vhd::VhdFile::open(&p)?)),
         Format::BinCue => disc(cue::read(&p)?),
         Format::CloneCd => disc(ccd::read(&p)?),
         Format::Nrg => disc(nrg::read(&p)?),

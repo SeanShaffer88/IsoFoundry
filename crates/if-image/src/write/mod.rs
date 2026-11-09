@@ -68,7 +68,7 @@ impl Read for ImageReader {
     }
 }
 
-fn reader(src: &Source, size: u64) -> Result<Box<dyn Read>> {
+pub(crate) fn reader(src: &Source, size: u64) -> Result<Box<dyn Read>> {
     Ok(match src {
         Source::File(p) => Box::new(File::open(p).map_err(|e| Error::Format(format!("{}: {e}", p.display())))?),
         Source::Bytes(b) => Box::new(std::io::Cursor::new(b.clone())),

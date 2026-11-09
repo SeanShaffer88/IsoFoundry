@@ -19,6 +19,7 @@ pub mod disc;
 pub mod edit;
 pub mod eltorito;
 pub mod fat;
+mod fat_write;
 pub mod fs;
 pub mod iso9660;
 pub mod mds;

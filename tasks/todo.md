@@ -102,58 +102,108 @@
 **Files likely touched:** `crates/if-image/src/container.rs`, `crates/if-image/src/fs.rs`, `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/browse.rs`
 **Estimated scope:** Medium
 
-## Task 7: Editing FAT images and saving safely
+## Task 7: Editing FAT images and saving safely — Done
 
 **Description:** Extend edit-image operations to supported FAT volumes and rebuild to a separate output image while preserving boot/partition metadata that the implementation can safely retain.
 
 **Acceptance criteria:**
-- [ ] Add, remove, rename, create-folder, and label operations work for FAT images.
-- [ ] The source is never modified; existing-destination and source/destination identity rules are enforced.
-- [ ] Unsupported boot sectors, partitions, or metadata are reported rather than silently discarded.
+- [x] Add, remove, rename, create-folder, and label operations work for FAT images.
+- [x] The source is never modified; existing-destination and source/destination identity rules are enforced.
+- [x] Unsupported boot sectors, partitions, or metadata are reported rather than silently discarded.
 
 **Verification:**
-- [ ] Add edit round-trip tests for all supported FAT types, fragmentation, collisions, cancellation, and source preservation.
-- [ ] Exercise the existing CLI and GUI edit paths against raw FAT fixtures.
+- [x] Add edit round-trip tests for all supported FAT types, fragmentation, collisions, cancellation, and source preservation.
+- [x] Exercise the existing CLI edit path against raw FAT fixtures; the GUI uses the same edit API and selects a raw-image output extension for FAT.
 
 **Dependencies:** Task 5, Task 6
 **Files likely touched:** `crates/if-image/src/fat_write.rs`, `crates/if-image/src/edit.rs`, `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/edit.rs`, focused tests
 **Estimated scope:** Medium
 
-## Task 8: Reading and writing fixed/dynamic VHD containers
+## Task 8: Parsing fixed and dynamic VHD containers — Done
 
-**Description:** Add a container adapter for legacy VHD fixed and dynamic disks, validating footer/header checksums, BAT entries, block bitmaps, and virtual-size bounds.
+**Description:** Add bounded, read-only support for fixed and dynamic VHD 1.0 images as logical byte/sector sources, validating metadata before exposing payload data.
 
 **Acceptance criteria:**
-- [ ] Fixed and dynamic VHD fixtures expose logical sector reads correctly.
-- [ ] Invalid checksums, overlapping/out-of-range blocks, and malformed BATs fail cleanly.
-- [ ] Writes produce a new VHD file and never mutate the input.
+- [x] Fixed and dynamic VHD fixtures expose logical reads, including sparse/unallocated dynamic blocks.
+- [x] Footer/header checksums, offsets, sizes, BAT entries, and block maps are validated with checked arithmetic.
+- [x] Truncated, malformed, out-of-range, overlapping, and differencing VHDs fail explicitly without unsafe allocation or I/O.
 
 **Verification:**
-- [ ] Add fixed/dynamic read-write round-trip tests plus malformed-container tests.
-- [ ] Compare generated fixtures with an independent VHD parser/tool where available.
+- [x] Add fixture tests for fixed/dynamic reads and malformed metadata.
+- [x] Check for an independent VHD parser; `qemu-img` is unavailable in this environment, so verification uses generated fixtures.
 
 **Dependencies:** Task 1
-**Files likely touched:** `crates/if-image/src/vhd.rs`, `crates/if-image/src/lib.rs`, tests
+**Files likely touched:** `crates/if-image/src/vhd.rs`, `crates/if-image/src/source.rs`, `crates/if-image/src/lib.rs`, `crates/if-image/tests/vhd.rs`
 **Estimated scope:** Medium
 
-## Task 9: Integrating VHD-contained FAT editing
+## Task 9: Writing fixed and dynamic VHD containers safely
 
-**Description:** Open VHD containers through the FAT image path and save edited virtual disks while retaining container type and safe metadata.
+**Description:** Add fixed and dynamic VHD writers that produce validated new containers without changing source files or overwriting existing destinations.
 
 **Acceptance criteria:**
-- [ ] Fixed and dynamic VHD images containing supported FAT volumes browse, extract, and edit through app workflows.
-- [ ] Successful edits reopen in IsoFoundry and an independent VHD reader.
-- [ ] All failures preserve both source and any pre-existing destination.
+- [x] Fixed and dynamic writers produce images that the VHD reader reopens with byte-correct logical contents.
+- [x] Footer/header metadata, checksums, block maps, and virtual sizes are valid and bounded.
+- [x] Cancellation and write errors do not leave a success-shaped partial destination.
 
 **Verification:**
-- [ ] Add end-to-end VHD/FAT edit tests, including malformed image and cancel cases.
-- [ ] Run workspace tests and app build.
+- [x] Add writer round-trip, destination-collision, cancellation, and malformed-output tests.
+- [x] Use an independent VHD parser for generated fixtures when available; `qemu-img` is unavailable in this environment.
 
-**Dependencies:** Task 7, Task 8
-**Files likely touched:** `crates/if-image/src/container.rs`, `crates/if-image/src/edit.rs`, CLI/GUI adapters, tests
+**Dependencies:** Task 8
+**Files likely touched:** `crates/if-image/src/vhd.rs`, `crates/if-image/src/vhd_write.rs`, `crates/if-image/tests/vhd.rs`
 **Estimated scope:** Medium
 
-## Task 10: Proving the multiboot boot chain and QEMU verification path
+## Task 10: Browsing and extracting FAT volumes inside VHDs
+
+**Description:** Route supported fixed/dynamic VHD images through existing image-info, browse, and extraction workflows.
+
+**Acceptance criteria:**
+- [x] Supported VHDs containing FAT12/16/32 volumes are recognized, browsed, and extracted by the shared image engine.
+- [x] Existing ISO/XISO/raw FAT behavior remains unchanged.
+- [x] Unsupported containers and VHDs without supported FAT volumes fail with actionable errors.
+
+**Verification:**
+- [x] Add CLI and integration tests for image-info and byte-correct extraction from fixed/dynamic VHD fixtures.
+- [x] Confirm the GUI browse/extract task uses the shared container path and retains cancellation behavior.
+
+**Dependencies:** Task 6, Task 8
+**Files likely touched:** `crates/if-image/src/container.rs`, `crates/isofoundry/src/cli_image.rs`, `crates/if-image/tests/vhd.rs`
+**Estimated scope:** Medium
+
+## Task 11: Editing FAT volumes inside VHDs
+
+**Description:** Integrate the VHD reader/writer with the existing FAT edit API and expose safe new-VHD saves through the CLI and GUI.
+
+**Acceptance criteria:**
+- [x] Add, remove, rename, create-folder, and label edits work for supported FAT volumes in fixed/dynamic VHDs.
+- [x] Edited VHDs reopen with correct contents; source bytes and pre-existing destinations remain unchanged.
+- [x] GUI and CLI use the shared implementation and report unsupported layouts and cancellation explicitly.
+
+**Verification:**
+- [x] Add end-to-end edit round trips for fixed/dynamic VHDs, including collision and cancellation cases.
+- [x] Run focused `if-image` and app tests and build the Windows application.
+
+**Dependencies:** Task 7, Task 9, Task 10
+**Files likely touched:** `crates/if-image/src/edit.rs`, `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/edit.rs`, VHD integration tests
+**Estimated scope:** Medium
+
+## Task 12: Documenting VHD support and limits
+
+**Description:** Document supported VHD variants, FAT-only behavior, safe editing semantics, and explicit exclusions.
+
+**Acceptance criteria:**
+- [x] README and architecture docs describe supported fixed/dynamic VHD workflows accurately.
+- [x] Limitations identify unsupported VHDX, differencing chains, and unsupported filesystems.
+- [x] Changelog states user-visible behavior without claiming hardware validation.
+
+**Verification:**
+- [x] Review all VHD claims against passing fixture and integration tests.
+
+**Dependencies:** Task 11
+**Files likely touched:** `README.md`, `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/LIMITATIONS.md`
+**Estimated scope:** Small
+
+## Task 13: Proving the multiboot boot chain and QEMU verification path
 
 **Description:** Select bootloader assets and define the minimal supported boot profiles, asset licensing/provenance, BIOS/UEFI layout, and reproducible QEMU software-test matrix before any destructive writer changes.
 
@@ -170,7 +220,7 @@
 **Files likely touched:** `docs/roadmap.md`, `docs/references.md`, test scripts/fixtures, possible `CREDITS.md`
 **Estimated scope:** Medium
 
-## Task 11: Installing a multiboot layout through the guarded USB engine
+## Task 14: Installing a multiboot layout through the guarded USB engine
 
 **Description:** Add an install path that uses existing target assessment, helper IPC, confirmation, and development image-target gates to partition/format a multiboot device and place boot assets.
 
@@ -183,11 +233,11 @@
 - [ ] Add file-backed device tests for partitioning, formatting, asset placement, cancellation, and safety denials.
 - [ ] Run helper protocol and USB writer suites; no physical disk is used.
 
-**Dependencies:** Task 10
+**Dependencies:** Task 13
 **Files likely touched:** `crates/usbwriter/src/multiboot.rs`, `crates/usbwriter/src/lib.rs`, CLI/helper route files, tests
 **Estimated scope:** Medium
 
-## Task 12: Managing ISO/WIM payloads and persistent boot options
+## Task 15: Managing ISO/WIM payloads and persistent boot options
 
 **Description:** Add validated add/remove/list operations for supported ISO/WIM payloads and a versioned per-entry configuration that survives content updates.
 
@@ -200,11 +250,11 @@
 - [ ] Add config round-trip, path-safety, collision, and payload manifest tests.
 - [ ] Boot at least one Linux ISO and one supported Windows/WinPE path under QEMU.
 
-**Dependencies:** Task 10, Task 11
+**Dependencies:** Task 13, Task 14
 **Files likely touched:** `crates/usbwriter/src/multiboot.rs`, `crates/if-core/src/settings.rs` or a dedicated config module, tests
 **Estimated scope:** Medium
 
-## Task 13: Integrating multiboot management in the app and CLI
+## Task 16: Integrating multiboot management in the app and CLI
 
 **Description:** Expose multiboot install/manage operations through a dedicated task window and documented CLI commands using existing progress, cancellation, confirmation, and helper patterns.
 
@@ -217,11 +267,11 @@
 - [ ] Add CLI parser/behavior tests and GUI adapter tests where the repository supports them.
 - [ ] Build the Windows app/helper and exercise complete workflows against a disposable disk image.
 
-**Dependencies:** Task 11, Task 12
+**Dependencies:** Task 14, Task 15
 **Files likely touched:** `crates/isofoundry/src/cli_usb.rs`, `crates/isofoundry/src/win/tasks`, `crates/isofoundry/src/win/gui.rs`, help/docs
 **Estimated scope:** Medium
 
-## Task 14: Verifying and documenting multiboot scenarios
+## Task 17: Verifying and documenting multiboot scenarios
 
 **Description:** Complete QEMU scenarios for supported BIOS/UEFI combinations and document compatibility boundaries, Secure Boot behavior, and recovery/update semantics.
 
@@ -234,11 +284,11 @@
 - [ ] Run the documented QEMU matrix and USB file-target suite.
 - [ ] Review README, LIMITATIONS, TESTING, and roadmap statements against results.
 
-**Dependencies:** Task 13
+**Dependencies:** Task 16
 **Files likely touched:** `docs/TESTING.md`, `docs/LIMITATIONS.md`, `docs/roadmap.md`, `README.md`, `CHANGELOG.md`
 **Estimated scope:** Medium
 
-## Task 15: Adding locale resources and language selection
+## Task 18: Adding locale resources and language selection
 
 **Description:** Add a resource-based string lookup with English and Spanish catalogs, English fallback, and an explicit language setting integrated with existing settings.
 
@@ -251,11 +301,11 @@
 - [ ] Add locale selection, fallback, settings migration, and missing-key tests.
 - [ ] Confirm existing task/window strings remain English before the translation sweep.
 
-**Dependencies:** Tasks 3, 6, 9, 13
+**Dependencies:** Tasks 3, 6, 11, 16; add dependencies for approved catalog modules before starting localization.
 **Files likely touched:** `crates/if-core/src/strings.rs`, settings, resource files, `Cargo.toml`/`Cargo.lock` if needed
 **Estimated scope:** Medium
 
-## Task 16: Localizing shared menus, task catalog, and core dialogs
+## Task 19: Localizing shared menus, task catalog, and core dialogs
 
 **Description:** Move the main window, task catalog, menu, common control, and shared confirmation/error strings to the resource catalogs and provide Spanish translations.
 
@@ -268,11 +318,11 @@
 - [ ] Add catalog parity tests and exercise menu/task selection in both locales.
 - [ ] Build the Windows app and inspect key dialog text through UI automation or accessibility tree.
 
-**Dependencies:** Task 15
+**Dependencies:** Task 18
 **Files likely touched:** `crates/if-core/src/strings.rs`, main GUI, task catalog, resource files, tests
 **Estimated scope:** Medium
 
-## Task 17: Localizing task windows in bounded groups
+## Task 20: Localizing task windows in bounded groups
 
 **Description:** Migrate all task-window labels, prompts, progress/status messages, errors, and confirmation text to keyed resources in small batches.
 
@@ -285,11 +335,11 @@
 - [ ] Migrate and test no more than a few windows per change batch.
 - [ ] Run string coverage tests after each batch; finish with both-locale workflow smoke tests.
 
-**Dependencies:** Task 16
+**Dependencies:** Task 19
 **Files likely touched:** task-window modules in groups, resource catalogs, focused tests
 **Estimated scope:** Medium per batch
 
-## Task 18: Enforcing localization completeness and final acceptance
+## Task 21: Enforcing localization completeness and final acceptance
 
 **Description:** Add a repository test that enumerates all GUI string keys and ensures Spanish coverage, then align release docs and perform a final full validation.
 
@@ -302,6 +352,6 @@
 - [ ] Run `cargo fmt --check`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo build -p isofoundry`.
 - [ ] Run the QEMU matrix and all software-only format/USB integration tests.
 
-**Dependencies:** Tasks 4, 9, 14, 17
+**Dependencies:** Tasks 4, 11, 12, 17, 20; add dependencies for approved catalog modules before final acceptance.
 **Files likely touched:** localization tests, README/docs, changelog, relevant feature tests
 **Estimated scope:** Medium

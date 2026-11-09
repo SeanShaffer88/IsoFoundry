@@ -25,7 +25,7 @@ The helper exits when its job finishes. It accepts only typed job messages (serd
 | `isofoundry-helper` | elevated binary | windows |
 | `if-core` | job model, journal, settings, errors (stable codes) | serde, thiserror |
 | `if-drive` | `OpticalDrive` trait; IMAPI2 backend; MMC/SPTI backend; fake backend | windows |
-| `if-image` | read/write ISO9660/Joliet/UDF, BIN/CUE, CCD, raw IMG, CHD; readers for MDS, NRG, CDI | — |
+| `if-image` | read/write ISO9660/Joliet/UDF, BIN/CUE, CCD, raw IMG, CHD; readers for MDS, NRG, CDI; FAT and fixed/dynamic VHD | — |
 | `if-audio` | decode (Symphonia, MF), encode (FLAC, LAME dyn, Opus, Vorbis, MF AAC), CD-DA ripping, CUE, CD-Text | symphonia |
 | `if-backup` | ZIP64 spanning, manifest, AES-256 | zip |
 | `usbwriter` | shared with WinISOPilot: enumerate, lock, partition (MBR/GPT), write image, boot files | windows |
@@ -68,9 +68,9 @@ Every job follows: **plan → preview → confirm (proportional) → journal →
 
 ## 5. Image engine
 
-- Writers: ISO9660 (levels 1–3, Rock Ridge off), Joliet, UDF 1.02/1.50/2.01/2.50/2.60, hybrid ISO+UDF, El Torito (BIOS + UEFI).
+- Writers: ISO9660 (levels 1–3, Rock Ridge off), Joliet, UDF 1.02/1.50/2.01/2.50/2.60, hybrid ISO+UDF, El Torito (BIOS + UEFI), FAT12/16/32 raw-volume editing to a separate image.
 - Readers: above + FAT12/16/32 (raw superfloppy or primary MBR partition, browse/extract), XDVDFS (read-only browse/extract), BIN/CUE (multi-track, audio), CCD/IMG/SUB, MDS/MDF (v1 only, reverse-engineered: Unverified), NRG v1/v2, CDI, DMG (UDIF raw/zlib, HFS+ read-only browse), WIM (browse via wimlib or own reader: decide M1).
-- Edit image: load tree, add/remove/rename, rebuild to new file (never in place).
+- Edit image: load tree, add/remove/rename, rebuild ISO images or rewrite supported FAT volumes to a new file (never in place).
 - Convert: any readable → ISO / BIN-CUE / CCD / IMG / CHD.
 
 ## 6. Audio

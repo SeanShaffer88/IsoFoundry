@@ -23,6 +23,7 @@ Kept current every release. Items move out only with evidence.
 - CHD: reads `zlib` and `cdzl` hunks only. CHDs compressed with chdman's defaults (LZMA, FLAC, Huffman) need `chdman copy -c cdzl` (CD) or `-c zlib` (DVD) first. Parent (delta) CHDs are not supported. IsoFoundry writes `cdzl`/`zlib`, so its CHDs are a few percent larger than chdman's defaults.
 - NRG and MDS/MDF are read only and unverified; first session only. Multi-session images and CD-Text are not converted.
 - XDVDFS/Xbox XISO images can be browsed and extracted, and the CLI can create new XISOs. Editing existing XISOs, volume labels, and El Torito boot entries are unsupported. File sizes and data sectors use 32-bit fields; directory tree links use 16-bit dword offsets. Game executable patching and copy-protection circumvention are out of scope.
+- Raw FAT12/16/32 floppy images and the first supported primary MBR FAT partition can be browsed, extracted, and edited to a new image. Fixed and dynamic VHD 1.0 containers expose the same FAT workflows and are saved back in their original VHD type. Editing preserves volume geometry and boot/partition sectors, but resets per-file timestamps and attributes. Edits are limited to 16 million clusters, 64 MB FAT tables, and 4 million allocated clusters. GPT and extended/logical partitions, VHDX, differencing VHD chains, and exFAT are unsupported. VHD editing temporarily materializes the virtual disk and therefore needs free space for the raw working copy and output.
 - Converting a multi-track CD to ISO keeps only the first data track.
 - Editing rewrites the image as ISO 9660 + Joliet + UDF 1.02. Hidden flags, Rock Ridge permissions and UDF 2.x extras of the source are not kept. Images that boot with floppy or hard-disk emulation can't be edited yet. Boot images that are also visible files are stored twice.
 - Mounting uses `AttachVirtualDisk`; whether it works without administrator rights depends on Windows policy and is untested outside CI (where the account is an administrator). A mount lasts until `unmount` or restart.
@@ -69,8 +70,9 @@ Kept current every release. Items move out only with evidence.
 
 - Several jobs at once means several task windows; there is no
   central job queue.
-- Copying a USB stick to an image has no window yet — it works
-  from the command line (`usb read`).
+- The USB-to-image window reads physical disks through the elevated
+  helper and disk-image files through the in-process route. Physical USB
+  hardware remains unverified; see the USB notes above.
 
 ## Audio (M3)
 - Opus and Ogg Vorbis **encoding** is not offered: there is no permissive pure-Rust encoder for either format and the C libraries cannot be built by this project's toolchain. Decoding both works.

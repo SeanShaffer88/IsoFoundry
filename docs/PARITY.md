@@ -28,7 +28,7 @@ limit · Missing = not there yet.
 | Surface / quality scan | Have | M5 |
 | Recover files from a damaged disc | Have | M5 |
 | Spanning backup / restore to discs | Have | M6 |
-| USB stick → image window | Missing | Works from the command line (`usb read`); window planned after 1.0 |
+| USB stick → image | Have | Task-grid variant and CLI; physical USB hardware remains unverified |
 | Blu-ray video (BDMV) authoring | Missing | Post-1.0 candidate |
 | Copy-protection handling | Never | Out of scope by design |
 

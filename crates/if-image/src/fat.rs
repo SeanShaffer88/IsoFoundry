@@ -11,21 +11,49 @@ const MAX_DIRECTORY_ENTRIES: usize = 100_000;
 const FAT_CACHE_PAGES: usize = 64;
 
 #[derive(Clone, Copy)]
-enum FatType {
+pub(crate) enum FatType {
     Fat12,
     Fat16,
     Fat32,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct FatLayout {
+    pub kind: FatType,
+    pub base: u64,
+    pub bytes_per_sector: u64,
+    pub sectors_per_cluster: u64,
+    pub reserved_sectors: u64,
+    pub fat_count: u64,
+    pub root_entries: u64,
+    pub total_sectors: u64,
+    pub cluster_count: u32,
+    pub fat_offset: u64,
+    pub fat_size: u64,
+    pub data_offset: u64,
+    pub backup_boot_sector: u16,
+    pub fs_info_sector: u16,
+    pub media_descriptor: u8,
+}
+
 pub struct Fat {
     kind: FatType,
+    base: u64,
     bytes_per_sector: u64,
     sectors_per_cluster: u64,
+    reserved_sectors: u64,
+    fat_count: u64,
+    root_entries: u64,
+    total_sectors: u64,
     cluster_count: u32,
     fat_offset: u64,
     fat_size: u64,
     data_offset: u64,
     volume_end: u64,
+    root_cluster: u32,
+    backup_boot_sector: u16,
+    fs_info_sector: u16,
+    media_descriptor: u8,
     root: Entry,
     label: String,
     fat_cache: RefCell<HashMap<u64, Vec<u8>>>,
@@ -34,10 +62,7 @@ pub struct Fat {
 impl Fat {
     /// Finds a FAT superfloppy or the first supported FAT partition in an MBR.
     pub fn probe(src: &mut dyn SectorSource) -> Result<Option<Self>> {
-        let image_bytes = src
-            .sectors()
-            .checked_mul(SECTOR as u64)
-            .ok_or_else(|| crate::Error::Format("image size overflow".into()))?;
+        let image_bytes = src.byte_len();
         if image_bytes < 512 {
             return Ok(None);
         }
@@ -174,9 +199,7 @@ impl Fat {
         let volume_size = total_sectors
             .checked_mul(bytes_per_sector)
             .ok_or_else(|| crate::Error::Format("FAT volume size overflow".into()))?;
-        if volume_size > available
-            || base.checked_add(volume_size).is_none_or(|end| end > src.sectors() * SECTOR as u64)
-        {
+        if volume_size > available || base.checked_add(volume_size).is_none_or(|end| end > src.byte_len()) {
             return bad("FAT volume extends beyond the image");
         }
         let fat_offset = base
@@ -201,15 +224,39 @@ impl Fat {
         } else {
             String::new()
         };
+        let root_cluster = if matches!(kind, FatType::Fat32) {
+            u32::from_le_bytes(full_boot[44..48].try_into().unwrap()) & 0x0fff_ffff
+        } else {
+            0
+        };
+        let backup_boot_sector = if matches!(kind, FatType::Fat32) {
+            u16::from_le_bytes(full_boot[50..52].try_into().unwrap())
+        } else {
+            u16::MAX
+        };
+        let fs_info_sector = if matches!(kind, FatType::Fat32) {
+            u16::from_le_bytes(full_boot[48..50].try_into().unwrap())
+        } else {
+            u16::MAX
+        };
         let mut fat = Self {
             kind,
+            base,
             bytes_per_sector,
             sectors_per_cluster,
+            reserved_sectors,
+            fat_count,
+            root_entries,
+            total_sectors,
             cluster_count,
             fat_offset,
             fat_size,
             data_offset,
             volume_end,
+            root_cluster,
+            backup_boot_sector,
+            fs_info_sector,
+            media_descriptor: boot[21],
             root: Entry {
                 name: String::new(),
                 dir: true,
@@ -223,7 +270,7 @@ impl Fat {
         };
 
         let (root_data, root_size) = if matches!(kind, FatType::Fat32) {
-            let cluster = u32::from_le_bytes(full_boot[44..48].try_into().unwrap()) & 0x0fff_ffff;
+            let cluster = fat.root_cluster;
             if cluster < 2 || cluster > cluster_count + 1 {
                 return bad("invalid FAT32 root directory cluster");
             }
@@ -241,6 +288,26 @@ impl Fat {
         fat.root.size = root_size;
         fat.root.data = Data::ByteExtents(root_data);
         Ok(Some(fat))
+    }
+
+    pub(crate) fn layout(&self) -> FatLayout {
+        FatLayout {
+            kind: self.kind,
+            base: self.base,
+            bytes_per_sector: self.bytes_per_sector,
+            sectors_per_cluster: self.sectors_per_cluster,
+            reserved_sectors: self.reserved_sectors,
+            fat_count: self.fat_count,
+            root_entries: self.root_entries,
+            total_sectors: self.total_sectors,
+            cluster_count: self.cluster_count,
+            fat_offset: self.fat_offset,
+            fat_size: self.fat_size,
+            data_offset: self.data_offset,
+            backup_boot_sector: self.backup_boot_sector,
+            fs_info_sector: self.fs_info_sector,
+            media_descriptor: self.media_descriptor,
+        }
     }
 
     fn fat_bytes(&self, src: &mut dyn SectorSource, offset: u64, len: usize) -> Result<Vec<u8>> {

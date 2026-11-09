@@ -67,6 +67,10 @@ impl VhdFile {
         Ok(Self { file, bytes, sectors: bytes.div_ceil(SECTOR as u64), layout })
     }
 
+    pub fn is_dynamic(&self) -> bool {
+        matches!(self.layout, Layout::Dynamic { .. })
+    }
+
     fn read_bytes(&mut self, offset: u64, out: &mut [u8]) -> Result<()> {
         let end =
             offset.checked_add(out.len() as u64).ok_or_else(|| crate::Error::Format("VHD read overflow".into()))?;

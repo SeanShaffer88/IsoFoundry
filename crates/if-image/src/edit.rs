@@ -7,10 +7,53 @@ use crate::container;
 use crate::eltorito::{Emulation, Platform};
 use crate::fs::{Data, Entry, FsKind, Volume};
 use crate::write::{self, BootImage, ImageData, Kind, Node, Options, SharedSource, Source, Summary};
-use crate::{bad, Result, SECTOR};
+use crate::{bad, Error, Result, SECTOR};
 use std::cell::RefCell;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+struct TempImage(PathBuf);
+
+impl TempImage {
+    fn new(label: &str) -> Result<Self> {
+        loop {
+            let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!("isofoundry-{label}-{}-{id}.img", std::process::id()));
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(_) => return Ok(Self(path)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn clear(&self) -> Result<()> {
+        match fs::remove_file(&self.0) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    fn remove(self) -> Result<()> {
+        self.clear()
+    }
+}
+
+impl Drop for TempImage {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
 
 /// One change. Paths are inside the image, `/`-separated, case-insensitive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +79,10 @@ pub struct Project {
     pub root: Node,
     pub opts: Options,
     pub warnings: Vec<String>,
+    source_path: PathBuf,
+    source_format: container::Format,
+    vhd_dynamic: bool,
+    fat_layout: Option<crate::fat::FatLayout>,
     _src: SharedSource,
 }
 
@@ -60,15 +107,30 @@ fn children(n: &mut Node) -> Result<&mut Vec<Node>> {
 
 impl Project {
     pub fn open(image: &Path) -> Result<Project> {
-        let (_, src) = container::open(image)?;
+        let (source_format, src) = container::open(image)?;
+        let vhd_dynamic = if source_format == container::Format::Vhd {
+            crate::vhd::VhdFile::open(image)?.is_dynamic()
+        } else {
+            false
+        };
         let mut v = Volume::open(src, None)?;
         if v.fs.kind() == FsKind::Xdvdfs {
             return bad("XDVDFS images are read-only and cannot be edited");
         }
-        if v.fs.kind() == FsKind::Fat {
-            return bad("FAT images are read-only and cannot be edited yet");
-        }
         let mut warnings = Vec::new();
+        let fat_layout = if v.fs.kind() == FsKind::Fat {
+            warnings.push(
+                "FAT edits preserve volume geometry and boot/partition sectors; per-file timestamps and attributes are reset"
+                    .into(),
+            );
+            Some(
+                crate::fat::Fat::probe(v.src.as_mut())?
+                    .ok_or_else(|| crate::Error::Format("FAT volume disappeared while opening the image".into()))?
+                    .layout(),
+            )
+        } else {
+            None
+        };
         let label = v.fs.label();
         let joliet = v.found.contains(&FsKind::Joliet) || v.found.contains(&FsKind::Udf);
         let udf = v.found.contains(&FsKind::Udf);
@@ -121,7 +183,16 @@ impl Project {
                 }
             }
         }
-        Ok(Project { root, opts, warnings, _src: shared })
+        Ok(Project {
+            root,
+            opts,
+            warnings,
+            source_path: image.to_path_buf(),
+            source_format,
+            vhd_dynamic,
+            fat_layout,
+            _src: shared,
+        })
     }
 
     fn dir_mut(&mut self, path: &str, create: bool) -> Result<&mut Vec<Node>> {
@@ -184,7 +255,80 @@ impl Project {
 
     /// Writes the edited image to `dest` (never the source).
     pub fn save(self, dest: &Path, progress: impl FnMut(u64, u64) -> bool + 'static) -> Result<Summary> {
-        write::build(&self.root, self.opts, dest, progress)
+        if let Some(layout) = self.fat_layout {
+            if self.source_format == container::Format::Vhd {
+                return self.save_vhd(layout, dest, progress);
+            }
+            crate::fat_write::build(&self.root, &self.opts.label, layout, &self.source_path, dest, progress)
+        } else {
+            write::build(&self.root, self.opts, dest, progress)
+        }
+    }
+
+    fn save_vhd(
+        self,
+        layout: crate::fat::FatLayout,
+        dest: &Path,
+        mut progress: impl FnMut(u64, u64) -> bool + 'static,
+    ) -> Result<Summary> {
+        if dest.exists() {
+            return bad(format!("destination already exists: {}", dest.display()));
+        }
+        let bytes = self._src.borrow().byte_len();
+        let total = bytes.saturating_mul(3).max(1);
+        let raw_source = TempImage::new("source")?;
+        let raw_output = TempImage::new("edited")?;
+        let result = (|| -> Result<Summary> {
+            {
+                let mut src = self._src.borrow_mut();
+                let mut file = OpenOptions::new().write(true).truncate(true).open(raw_source.path())?;
+                let mut offset = 0u64;
+                let mut buffer = vec![0; 1 << 20];
+                while offset < bytes {
+                    let len = (bytes - offset).min(buffer.len() as u64) as usize;
+                    let read_len = len.div_ceil(SECTOR) * SECTOR;
+                    src.read_sectors(offset / SECTOR as u64, &mut buffer[..read_len])?;
+                    file.write_all(&buffer[..len])?;
+                    offset += len as u64;
+                    if !progress(offset, total) {
+                        return Err(Error::Cancelled);
+                    }
+                }
+                file.sync_all()?;
+            }
+            raw_output.clear()?;
+            let summary = crate::fat_write::build(
+                &self.root,
+                &self.opts.label,
+                layout,
+                raw_source.path(),
+                raw_output.path(),
+                |done, stage_total| {
+                    let scaled = if stage_total == 0 {
+                        0
+                    } else {
+                        ((u128::from(done.min(stage_total)) * u128::from(bytes)) / u128::from(stage_total)) as u64
+                    };
+                    progress(bytes.saturating_add(scaled), total)
+                },
+            )?;
+            let mut raw = crate::source::IsoFile::open(raw_output.path())?;
+            let write_progress =
+                |done: u64, _stage_total: u64| progress(bytes.saturating_mul(2).saturating_add(done), total);
+            if self.vhd_dynamic {
+                crate::vhd_write::write_dynamic(&mut raw, dest, write_progress)?;
+            } else {
+                crate::vhd_write::write_fixed(&mut raw, dest, write_progress)?;
+            }
+            Ok(summary)
+        })();
+        let cleanup = raw_source.remove().and_then(|()| raw_output.remove());
+        match (result, cleanup) {
+            (Err(error), Err(cleanup)) => bad(format!("{error}; additionally, {cleanup}")),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(cleanup)) => Err(cleanup),
+            (Ok(summary), Ok(())) => Ok(summary),
+        }
     }
 }
 
