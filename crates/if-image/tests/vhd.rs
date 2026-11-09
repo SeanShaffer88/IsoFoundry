@@ -1,6 +1,6 @@
 use if_image::source::SectorSource;
 use if_image::vhd::VhdFile;
-use if_image::vhd_write::write_fixed;
+use if_image::vhd_write::{write_dynamic, write_fixed};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -34,6 +34,28 @@ impl Drop for TempVhd {
         let mut part = self.0.as_os_str().to_owned();
         part.push(".part");
         let _ = std::fs::remove_file(PathBuf::from(part));
+    }
+}
+
+struct FailingSource {
+    sectors: u64,
+}
+
+impl SectorSource for FailingSource {
+    fn sectors(&self) -> u64 {
+        self.sectors
+    }
+
+    fn byte_len(&self) -> u64 {
+        self.sectors * SECTOR as u64
+    }
+
+    fn read_sectors(&mut self, lba: u64, buf: &mut [u8]) -> if_image::Result<()> {
+        if lba != 0 {
+            return Err(if_image::Error::Format("injected source read error".into()));
+        }
+        buf.fill(0x44);
+        Ok(())
     }
 }
 
@@ -232,6 +254,26 @@ fn writes_fixed_vhd_that_reopens_with_exact_contents() {
 }
 
 #[test]
+fn writes_sparse_dynamic_vhd_that_reopens_with_exact_contents() {
+    let mut bytes = vec![0; 2 * 1024 * 1024 + 4096];
+    bytes[512..1024].fill(0x5a);
+    let mut source = if_image::source::MemSource(bytes.clone());
+    let dest = TempVhd::absent();
+
+    write_dynamic(&mut source, dest.path(), |_, _| true).unwrap();
+
+    let mut vhd = VhdFile::open(dest.path()).unwrap();
+    let mut output = vec![0xff; bytes.len().div_ceil(SECTOR) * SECTOR];
+    vhd.read_sectors(0, &mut output).unwrap();
+    assert_eq!(vhd.byte_len(), bytes.len() as u64);
+    assert_eq!(&output[..bytes.len()], bytes);
+    assert!(output[bytes.len()..].iter().all(|byte| *byte == 0));
+    let encoded = std::fs::read(dest.path()).unwrap();
+    assert_ne!(&encoded[1536..1540], &u32::MAX.to_be_bytes());
+    assert_eq!(&encoded[1540..1544], &u32::MAX.to_be_bytes());
+}
+
+#[test]
 fn refuses_to_overwrite_a_vhd_destination() {
     let dest = TempVhd::new(b"keep this file");
     let mut source = if_image::source::MemSource(vec![0x31; 4096]);
@@ -249,6 +291,32 @@ fn removes_partial_vhd_output_when_cancelled() {
     let result = write_fixed(&mut source, dest.path(), |_, _| false);
 
     assert!(matches!(result, Err(if_image::Error::Cancelled)));
+    assert!(!dest.path().exists());
+    let mut part = dest.path().as_os_str().to_owned();
+    part.push(".part");
+    assert!(!PathBuf::from(part).exists());
+}
+
+#[test]
+fn removes_partial_dynamic_vhd_when_cancelled() {
+    let dest = TempVhd::absent();
+    let mut source = if_image::source::MemSource(vec![0x31; 2 * 1024 * 1024]);
+
+    let result = write_dynamic(&mut source, dest.path(), |_, _| false);
+
+    assert!(matches!(result, Err(if_image::Error::Cancelled)));
+    assert!(!dest.path().exists());
+    let mut part = dest.path().as_os_str().to_owned();
+    part.push(".part");
+    assert!(!PathBuf::from(part).exists());
+}
+
+#[test]
+fn removes_partial_vhd_output_when_the_source_fails() {
+    let dest = TempVhd::absent();
+    let mut source = FailingSource { sectors: 513 };
+
+    assert!(write_fixed(&mut source, dest.path(), |_, _| true).is_err());
     assert!(!dest.path().exists());
     let mut part = dest.path().as_os_str().to_owned();
     part.push(".part");
