@@ -25,6 +25,7 @@ pub mod mds;
 pub mod nrg;
 pub mod source;
 pub mod udf;
+pub mod vhd;
 pub mod write;
 pub mod xiso;
 
