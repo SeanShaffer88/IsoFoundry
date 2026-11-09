@@ -25,6 +25,7 @@ pub mod nrg;
 pub mod source;
 pub mod udf;
 pub mod write;
+pub mod xiso;
 
 pub const SECTOR: usize = 2048;
 

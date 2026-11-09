@@ -33,6 +33,7 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FsKind {
+    Xdvdfs,
     Iso9660,
     Joliet,
     Udf,
@@ -41,6 +42,7 @@ pub enum FsKind {
 impl FsKind {
     pub fn name(self) -> &'static str {
         match self {
+            FsKind::Xdvdfs => "XDVDFS",
             FsKind::Iso9660 => "ISO 9660",
             FsKind::Joliet => "Joliet",
             FsKind::Udf => "UDF",
@@ -137,14 +139,18 @@ pub struct Volume {
 }
 
 impl Volume {
-    /// Opens the best file system on `src`: UDF (large files, Unicode),
-    /// then Joliet, then plain ISO 9660. `prefer` picks one explicitly.
+    /// Opens the best file system on `src`: XDVDFS, UDF (large files,
+    /// Unicode), Joliet, then plain ISO 9660. `prefer` picks one explicitly.
     pub fn open(mut src: Box<dyn SectorSource>, prefer: Option<FsKind>) -> Result<Volume> {
+        let xdvdfs = crate::xiso::Xdvdfs::probe(src.as_mut())?;
         let iso = crate::iso9660::scan(src.as_mut()).ok();
         let udf_result = crate::udf::Udf::open(src.as_mut());
         let udf_error = udf_result.as_ref().err().map(|e| e.to_string()).filter(|m| m != "no UDF anchor");
         let udf = udf_result.ok();
         let mut found = Vec::new();
+        if xdvdfs.is_some() {
+            found.push(FsKind::Xdvdfs);
+        }
         if udf.is_some() {
             found.push(FsKind::Udf);
         }
@@ -159,7 +165,7 @@ impl Volume {
         if found.is_empty() {
             return match udf_error {
                 Some(m) => bad(format!("UDF file system found but not readable: {m}")),
-                None => bad("no ISO 9660, Joliet or UDF file system found"),
+                None => bad("no XDVDFS, ISO 9660, Joliet or UDF file system found"),
             };
         }
         let want = prefer.unwrap_or(found[0]);
@@ -169,6 +175,7 @@ impl Volume {
         let boot =
             iso.as_ref().and_then(|s| s.boot_catalog).and_then(|lba| crate::eltorito::read(src.as_mut(), lba).ok());
         let fs: Box<dyn FileSystem> = match want {
+            FsKind::Xdvdfs => Box::new(xdvdfs.expect("checked")),
             FsKind::Udf => Box::new(udf.expect("checked")),
             FsKind::Joliet => Box::new(iso.and_then(|s| s.joliet).expect("checked")),
             FsKind::Iso9660 => Box::new(iso.and_then(|s| s.primary).expect("checked")),
