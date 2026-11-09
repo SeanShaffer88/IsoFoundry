@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening a CHD whose header declared an absurd size could abort the program while allocating the hunk map. The header is now checked first (AUDIT B-11).
+
 ### Docs
 
 - Added Ventoy, YUMI, Universal USB Installer, XBOOT, LiveUSB Install and balenaEtcher to the references, roadmap (multiboot and USB-safety items) and credits. Ideas only; no code used.

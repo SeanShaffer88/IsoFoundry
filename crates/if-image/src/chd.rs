@@ -804,6 +804,9 @@ pub struct Chd {
     disc: Option<Disc>,
 }
 
+/// Upper bound on hunks in one CHD (64 Mi hunks: far beyond any real disc).
+const MAX_HUNKS: usize = 1 << 26;
+
 impl Chd {
     pub fn open(path: &Path) -> Result<Chd> {
         let mut f = File::open(path)?;
@@ -831,8 +834,16 @@ impl Chd {
         }
         let hunks = logical.div_ceil(hunkbytes as u64) as usize;
         let len = f.metadata()?.len();
+        // The hunk count comes straight from the header; bound it before it
+        // sizes any allocation, so a hostile header cannot exhaust memory.
+        if hunks > MAX_HUNKS {
+            return bad("CHD header declares an implausible number of hunks");
+        }
         let map = if codecs[0] == 0 {
             // Uncompressed CHD: 4-byte big-endian hunk offsets (in hunks).
+            if map_off.checked_add(hunks as u64 * 4).is_none_or(|end| end > len) {
+                return bad("CHD map outside the file");
+            }
             let mut m = vec![0u8; hunks * 4];
             f.seek(SeekFrom::Start(map_off))?;
             f.read_exact(&mut m)?;
@@ -1107,5 +1118,27 @@ mod tests {
         let c = cdzl_compress(&hunk);
         assert_eq!(c[0], 0b1101_1111);
         assert_eq!(cdzl_decompress(&c, hunk.len()).unwrap(), hunk);
+    }
+
+    /// A header that claims an absurd logical size must be refused, not
+    /// turned into a giant allocation (and, with panic=abort, a crash).
+    #[test]
+    fn hostile_header_is_refused_before_allocating() {
+        for codec0 in [0u32, u32::from_be_bytes(*b"zlib")] {
+            let mut h = [0u8; 124];
+            h[0..8].copy_from_slice(b"MComprHD");
+            h[8..12].copy_from_slice(&124u32.to_be_bytes());
+            h[12..16].copy_from_slice(&5u32.to_be_bytes());
+            h[16..20].copy_from_slice(&codec0.to_be_bytes());
+            h[32..40].copy_from_slice(&(1u64 << 60).to_be_bytes()); // logical bytes
+            h[40..48].copy_from_slice(&124u64.to_be_bytes()); // map offset
+            h[56..60].copy_from_slice(&512u32.to_be_bytes()); // hunk bytes
+            h[60..64].copy_from_slice(&512u32.to_be_bytes()); // unit bytes
+            let dir = std::env::temp_dir().join(format!("if-chd-hostile-{}-{codec0}", std::process::id()));
+            std::fs::write(&dir, h).unwrap();
+            let r = Chd::open(&dir);
+            std::fs::remove_file(&dir).ok();
+            assert!(matches!(r, Err(Error::Format(_))), "codec {codec0}: {:?}", r.err());
+        }
     }
 }
