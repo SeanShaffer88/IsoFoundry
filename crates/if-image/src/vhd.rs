@@ -8,8 +8,8 @@ use std::path::Path;
 
 const VHD_SECTOR: u64 = 512;
 const FOOTER_SIZE: u64 = 512;
-const MAX_VIRTUAL_SIZE: u64 = 2 * 1024 * 1024 * 1024 * 1024;
-const MAX_BAT_ENTRIES: u32 = 1_048_576;
+pub(crate) const MAX_VIRTUAL_SIZE: u64 = 2 * 1024 * 1024 * 1024 * 1024;
+pub(crate) const MAX_BAT_ENTRIES: u32 = 1_048_576;
 const MAX_BLOCK_SIZE: u64 = 256 * 1024 * 1024;
 const FOOTER_COOKIE: &[u8; 8] = b"conectix";
 const HEADER_COOKIE: &[u8; 8] = b"cxsparse";

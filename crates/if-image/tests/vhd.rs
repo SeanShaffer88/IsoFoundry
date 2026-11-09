@@ -1,5 +1,6 @@
 use if_image::source::SectorSource;
 use if_image::vhd::VhdFile;
+use if_image::vhd_write::write_fixed;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -10,9 +11,14 @@ static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
 struct TempVhd(PathBuf);
 
 impl TempVhd {
-    fn new(bytes: &[u8]) -> Self {
+    fn absent() -> Self {
         let id = NEXT_FILE.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("if-image-vhd-{}-{id}.vhd", std::process::id()));
+        Self(path)
+    }
+
+    fn new(bytes: &[u8]) -> Self {
+        let path = Self::absent().0.clone();
         std::fs::write(&path, bytes).unwrap();
         Self(path)
     }
@@ -25,6 +31,9 @@ impl TempVhd {
 impl Drop for TempVhd {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
+        let mut part = self.0.as_os_str().to_owned();
+        part.push(".part");
+        let _ = std::fs::remove_file(PathBuf::from(part));
     }
 }
 
@@ -204,4 +213,53 @@ fn rejects_differencing_vhds() {
     let file = TempVhd::new(&bytes);
 
     assert!(VhdFile::open(file.path()).is_err());
+}
+
+#[test]
+fn writes_fixed_vhd_that_reopens_with_exact_contents() {
+    let bytes: Vec<u8> = (0..4608).map(|byte| (byte % 239) as u8).collect();
+    let mut source = if_image::source::MemSource(bytes.clone());
+    let dest = TempVhd::absent();
+
+    write_fixed(&mut source, dest.path(), |_, _| true).unwrap();
+
+    let mut vhd = VhdFile::open(dest.path()).unwrap();
+    let mut output = vec![0xff; 3 * SECTOR];
+    vhd.read_sectors(0, &mut output).unwrap();
+    assert_eq!(vhd.byte_len(), bytes.len() as u64);
+    assert_eq!(&output[..bytes.len()], bytes);
+    assert!(output[bytes.len()..].iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn refuses_to_overwrite_a_vhd_destination() {
+    let dest = TempVhd::new(b"keep this file");
+    let mut source = if_image::source::MemSource(vec![0x31; 4096]);
+
+    assert!(write_fixed(&mut source, dest.path(), |_, _| true).is_err());
+
+    assert_eq!(std::fs::read(dest.path()).unwrap(), b"keep this file");
+}
+
+#[test]
+fn removes_partial_vhd_output_when_cancelled() {
+    let dest = TempVhd::absent();
+    let mut source = if_image::source::MemSource(vec![0x31; 4096]);
+
+    let result = write_fixed(&mut source, dest.path(), |_, _| false);
+
+    assert!(matches!(result, Err(if_image::Error::Cancelled)));
+    assert!(!dest.path().exists());
+    let mut part = dest.path().as_os_str().to_owned();
+    part.push(".part");
+    assert!(!PathBuf::from(part).exists());
+}
+
+#[test]
+fn rejects_non_512_byte_virtual_sizes_without_creating_output() {
+    let dest = TempVhd::absent();
+    let mut source = if_image::source::MemSource(vec![0; 513]);
+
+    assert!(write_fixed(&mut source, dest.path(), |_, _| true).is_err());
+    assert!(!dest.path().exists());
 }
