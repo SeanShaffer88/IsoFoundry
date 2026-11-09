@@ -43,6 +43,16 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | B-8 | Dependency audit (`cargo audit` over the lockfile): could not be run for this pass — the audit tool would not install on the development VM (network transfer failures, twice; a third attempt at the 1.0 pass stalled the same way). The lockfile's crates are the workspace's long-standing set; no new dependency was added by M6 or RC. | — | Owed: run `cargo audit` in the repo and record the result here. |
 | B-9 | Image parsers take malformed input without panicking (RC drills: empty, truncated, garbage and random files through open/walk). A dedicated fuzz campaign (cargo-fuzz over the ISO/UDF/CHD/CCD parsers) has not been run. | Medium | Drills in place; fuzz campaign still owed. |
 
+## 2026-11-09 — Panic-path review
+
+**Scope:** every non-test `unwrap`/`expect`/slice-index/allocation in the workspace, checked for reachability from untrusted input (image files, disk contents). `panic = "abort"` makes any panic fatal.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| B-11 | A CHD header's logical size sized the hunk-map allocation unchecked: a hostile header (logical size 2^60) aborted the process while opening the file. | Medium | Fixed: hunk count capped, uncompressed map checked against the file length; regression test fails without the fix. |
+| B-12 | `Fat32Volume::open` computes `total - data_start` and sizes the FAT from `fat_sectors` without checking them against the volume. It only opens volumes this program just wrote, so no untrusted path reaches it today. | Low | Open: harden before any "read an existing stick" feature. |
+| B-13 | The remaining `unwrap`/`expect` calls are on fixed-size slices, static algorithm names, locks and invariants set a line earlier. None found reachable from file input. | — | Reviewed by reading, not by fuzzing; B-9 stays open. |
+
 ## 2026-11-07 — M0 shell
 
 | # | Finding | Severity | Status |
