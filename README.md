@@ -33,17 +33,17 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 These jobs run from the task windows and the command line:
 
-- **`create-image`** — build an ISO from files and folders: ISO 9660 + Joliet + UDF 1.02 in one image sharing a single copy of the data, files over 4 GB, El Torito boot entries for BIOS (optional boot information table) and UEFI. Written to a `.part` file and renamed only when complete, so a cancelled build never leaves a half-written image.
-- **`image-info`** — an image's container format, tracks, file systems, label and boot entries.
-- **`extract`** — copy files out of an image (everything, or one file/folder), renaming names Windows cannot store, and keeping nothing half-written on cancel.
-- **`edit-image`** — add, remove, rename, create folders, change the label, saved as a new image; untouched files are copied straight from the source, and BIOS/UEFI boot entries are kept.
+- **`create-image`** — build an ISO from files and folders: ISO 9660 + Joliet + UDF 1.02 in one image sharing a single copy of the data, files over 4 GB, El Torito boot entries for BIOS (optional boot information table) and UEFI. `--fs xdvdfs` (or `xiso`) creates an Xbox XISO. Written to a `.part` file and renamed only when complete, so a cancelled build never leaves a half-written image.
+- **`image-info`** — an image's container format, tracks, file systems, label and boot entries; recognizes XDVDFS/XISO.
+- **`extract`** — copy files out of an image (everything, or one file/folder), renaming names Windows cannot store, and keeping nothing half-written on cancel. XISO browsing and extraction also work in the GUI browse task.
+- **`edit-image`** — add, remove, rename, create folders, change the label, saved as a new image; untouched files are copied straight from the source, and BIOS/UEFI boot entries are kept. XDVDFS/XISO images are read-only.
 - **`convert-image`** — any readable image to ISO, BIN/CUE, CloneCD (CCD/IMG/SUB) or CHD.
 - **`checksum`** — CRC32, MD5, SHA-1 and SHA-256 in one pass; `--dat` also writes a Logiqx-style `.dat` hash file.
 - **`verify --dat`** — look a file's hashes up in a known-good `.dat` list (for example a redump list) and report match or no match.
 - **`compare`** — byte-for-byte comparison of two files.
 - **`mount` / `unmount`** — mount an image read-only with Windows' built-in virtual disk support; other formats are converted to a temporary ISO first, which is removed on unmount.
 
-Formats: ISO 9660 (with Rock Ridge names), Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), multi-extent files, El Torito boot catalogs (BIOS and UEFI). CD images: BIN/CUE (single and multi-file; MODE1, MODE2 and audio tracks), CloneCD CCD/IMG/SUB, sheetless raw `.bin`/`.img`, and MAME CHD v5 — reading `zlib`/`cdzl` discs and writing CD (`cdzl`) and DVD (`zlib`) CHDs whose SHA-1s match chdman 0.264 byte for byte on the test images. Nero NRG and Alcohol MDS/MDF are read-only and marked unverified. Raw sector ECC/EDC generation and checks, and Q-subchannel generation, are included. Known format limits are listed in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+Formats: ISO 9660 (with Rock Ridge names), Joliet, UDF 1.02–2.60 (physical, sparable and metadata partitions), XDVDFS/Xbox XISO (browse, extract and create), multi-extent files, El Torito boot catalogs (BIOS and UEFI). CD images: BIN/CUE (single and multi-file; MODE1, MODE2 and audio tracks), CloneCD CCD/IMG/SUB, sheetless raw `.bin`/`.img`, and MAME CHD v5 — reading `zlib`/`cdzl` discs and writing CD (`cdzl`) and DVD (`zlib`) CHDs whose SHA-1s match chdman 0.264 byte for byte on the test images. Nero NRG and Alcohol MDS/MDF are read-only and marked unverified. Raw sector ECC/EDC generation and checks, and Q-subchannel generation, are included. Known format limits are listed in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## USB tools
 

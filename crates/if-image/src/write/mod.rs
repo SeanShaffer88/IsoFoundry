@@ -8,6 +8,7 @@
 
 mod names;
 pub(crate) mod udfw;
+mod xiso;
 
 use crate::{bad, Error, Result, SECTOR};
 use std::collections::HashSet;
@@ -199,6 +200,8 @@ pub struct Summary {
     pub files: u64,
     pub dirs: u64,
 }
+
+pub use xiso::build_xiso;
 
 struct Plan {
     nodes: Vec<P>,

@@ -11,7 +11,7 @@ use serde_json::json;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf]\n\
+pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs iso9660,joliet,udf|xdvdfs]\n\
        [--boot-bios IMG [--boot-load-sectors N] [--boot-info-table]] [--boot-efi IMG]\n\
                        Build an ISO from files and folders (one folder = its contents)\n\
   image-info IMAGE      Format, tracks, file systems, label and boot entries\n\
@@ -149,7 +149,7 @@ pub fn source_tree(sources: &[PathBuf]) -> Result<if_image::write::Node, (Exit, 
 }
 
 fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
-    use if_image::write::{build, BootImage, Options};
+    use if_image::write::{build, build_xiso, BootImage, Options};
     let a = parse(tail, &["out", "label", "fs", "boot-bios", "boot-efi", "boot-load-sectors"]).map_err(usage_err)?;
     let mut info_table = false;
     let pos: Vec<PathBuf> = a
@@ -167,15 +167,33 @@ fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
         .collect();
     let dest = PathBuf::from(a.get("out").ok_or_else(|| usage_err("missing --out FILE.iso"))?);
     let mut opts = Options::default();
+    let mut xdvdfs = false;
     if let Some(fs) = a.get("fs") {
-        let set: Vec<String> = fs.split(',').map(|x| x.trim().to_ascii_lowercase()).collect();
+        let set: Vec<String> = fs
+            .split(',')
+            .map(|x| x.trim().to_ascii_lowercase())
+            .map(|x| if x == "xiso" { "xdvdfs".to_string() } else { x })
+            .collect();
         for x in &set {
-            if !["iso9660", "joliet", "udf"].contains(&x.as_str()) {
+            if !["iso9660", "joliet", "udf", "xdvdfs"].contains(&x.as_str()) {
                 return Err(usage_err(format!("unknown file system {x}")));
             }
         }
+        xdvdfs = set.iter().any(|x| x == "xdvdfs");
+        if xdvdfs && set.len() != 1 {
+            return Err(usage_err("XDVDFS cannot be combined with ISO 9660, Joliet or UDF"));
+        }
         opts.joliet = set.iter().any(|x| x == "joliet");
         opts.udf = set.iter().any(|x| x == "udf");
+    }
+    if xdvdfs
+        && (a.get("label").is_some()
+            || a.get("boot-bios").is_some()
+            || a.get("boot-efi").is_some()
+            || a.get("boot-load-sectors").is_some()
+            || info_table)
+    {
+        return Err(usage_err("XDVDFS does not support volume labels or El Torito boot options"));
     }
     opts.label = a.get("label").map(str::to_string).unwrap_or_else(|| {
         match pos.as_slice() {
@@ -202,7 +220,8 @@ fn create(tail: &[String], g: &Global, o: &mut Out<'_>) -> R {
         o.ok_text(&format!("would build {} from {} source(s)", dest.display(), pos.len()));
         return Ok(());
     }
-    let s = build(&root, opts, &dest, |_, _| true).map_err(image_err)?;
+    let s = if xdvdfs { build_xiso(&root, &dest, |_, _| true) } else { build(&root, opts, &dest, |_, _| true) }
+        .map_err(image_err)?;
     if o.json {
         o.ok_text(
             &json!({ "ok": true, "path": dest.display().to_string(), "bytes": s.sectors * 2048,
@@ -655,6 +674,56 @@ mod tests {
         assert_eq!(code, 0, "{err}");
         assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
         std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn create_image_can_build_xdvdfs() {
+        let d = tmp("create-xiso");
+        std::fs::create_dir_all(d.join("nested")).unwrap();
+        std::fs::write(d.join("nested").join("payload.bin"), b"Xbox").unwrap();
+        let image = d.join("game.iso");
+        let (code, out, err) =
+            call(&["create-image", d.to_str().unwrap(), "--out", image.to_str().unwrap(), "--fs", "xdvdfs"]);
+        assert_eq!(code, 0, "{out}{err}");
+
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["XDVDFS"]));
+
+        let dest = d.join("extracted");
+        let (code, _, err) =
+            call(&["extract", image.to_str().unwrap(), "--out", dest.to_str().unwrap(), "--fs", "xiso"]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("nested").join("payload.bin")).unwrap(), b"Xbox");
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn xdvdfs_create_rejects_unsupported_iso_options() {
+        let d = tmp("xiso-options");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("payload.bin"), b"Xbox").unwrap();
+        let output = d.join("game.iso");
+        let (code, _, err) =
+            call(&["create-image", d.to_str().unwrap(), "--out", output.to_str().unwrap(), "--fs", "xdvdfs,joliet"]);
+        assert_eq!(code, 2, "{err}");
+        assert!(err.contains("cannot be combined"));
+
+        let (code, _, err) = call(&[
+            "create-image",
+            d.to_str().unwrap(),
+            "--out",
+            output.to_str().unwrap(),
+            "--fs",
+            "xdvdfs",
+            "--label",
+            "GAMES",
+        ]);
+        assert_eq!(code, 2, "{err}");
+        assert!(err.contains("does not support volume labels"));
+        assert!(!output.exists());
+        std::fs::remove_dir_all(d).unwrap();
     }
 
     #[test]

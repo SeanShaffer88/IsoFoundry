@@ -30,13 +30,13 @@ Complete the four explicitly selected 1.x roadmap features: multiboot USB, FAT/V
 - [ ] XISO, FAT/VHD, and multiboot format/asset decisions are supported by repository evidence and documented references.
 
 ### Phase 1: Xbox XISO
-- [ ] Task 2: Read and validate XDVDFS volumes.
-- [ ] Task 3: Expose XISO browse and extraction in CLI and GUI.
-- [ ] Task 4: Create XISO images and add end-to-end coverage.
+- [x] Task 2: Read and validate XDVDFS volumes.
+- [x] Task 3: Expose XISO browse and extraction in CLI and GUI.
+- [x] Task 4: Create XISO images and add end-to-end coverage.
 
 ### Checkpoint: XISO
-- [ ] Fixture images list, extract and recreate files with byte-for-byte verification.
-- [ ] CLI and GUI workflows are documented and tested without physical hardware.
+- [x] Fixture images list, extract and recreate files with byte-for-byte verification.
+- [x] CLI and GUI workflows are documented and tested without physical hardware.
 
 ### Phase 2: FAT and VHD image editing
 - [ ] Task 5: Read FAT12/16/32 volumes and locate supported partitions.

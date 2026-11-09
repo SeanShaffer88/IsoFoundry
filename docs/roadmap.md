@@ -38,7 +38,7 @@ Out of scope: anything for copy-protected discs (SecuROM, SafeDisc, LibCrypt and
 - [x] **Auto-action on disc insert** (idea from [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine), MIT): optional mode that detects a newly inserted disc and identifies it (audio / data). As built (M6, D-051) it opens the chosen job's window rather than starting the job itself — the output location is a per-job choice; encrypted video discs are not ripped.
 - [ ] **Edit image files** (reference: [TotalImage](https://github.com/TotalImage/TotalImage), MIT): open an image, browse it, extract, add or remove files and save. ISO9660/Joliet/UDF first (M1), then FAT floppy/HDD images and VHD (1.x).
 - [x] **Preservation dumping UI** (reference: [Redumper GUI](https://github.com/Deterous/Redumper-GUI), GPL-3.0, Rust): pick drive and system, show progress and the log, produce redump-style output. GPL code is not copied. (M5)
-- [ ] Optional: open/extract/create Xbox XISO (XDVDFS) images (reference: [extract-xiso](https://github.com/XboxDev/extract-xiso)). Filesystem only; no patching of game executables. (1.x)
+- [x] Open, extract, and create Xbox XISO (XDVDFS) images (reference: [extract-xiso](https://github.com/XboxDev/extract-xiso)). The CLI creates XISOs; the GUI browse task opens and extracts them. Existing XISOs are read-only. Filesystem only; no patching of game executables. (1.x)
 
 Not used, because they bypass console copy protection: PS3-Quick-Disc-Decryptor (decrypts PS3 disc images with keys), ftpdump (dumps games from modified PS4 consoles).
 

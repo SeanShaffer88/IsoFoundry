@@ -51,21 +51,21 @@
 **Files likely touched:** `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/browse.rs`, `crates/if-image/tests/read.rs`
 **Estimated scope:** Medium
 
-## Task 4: Creating XISO images and end-to-end coverage — In progress
+## Task 4: Creating XISO images and end-to-end coverage — Done
 
 **Description:** Add an XDVDFS writer and an explicit XISO create path that produces compatible images without touching game executables or protected content.
 
 **Acceptance criteria:**
-- [ ] A source tree can be written as XISO and reopened by the new reader.
-- [ ] File/directory extents, alignment, names, and size limits are validated.
-- [ ] Existing ISO creation and editing output remain unchanged.
+- [x] A source tree can be written as XISO and reopened by the new reader.
+- [x] File/directory extents, alignment, names, and size limits are validated.
+- [x] Existing ISO creation and editing output remain unchanged.
 
 **Verification:**
-- [ ] Round-trip tests compare every source file byte-for-byte and exercise invalid names/limits.
-- [ ] Document CLI and GUI availability, filesystem scope, and exclusions.
+- [x] Round-trip tests compare every source file byte-for-byte and exercise invalid names/limits.
+- [x] Document CLI and GUI availability, filesystem scope, and exclusions.
 
 **Dependencies:** Task 2
-**Files likely touched:** `crates/if-image/src/xiso_write.rs`, `crates/if-image/src/lib.rs`, `crates/isofoundry/src/cli_image.rs`, focused tests/docs
+**Files likely touched:** `crates/if-image/src/write/xiso.rs`, `crates/if-image/src/write/mod.rs`, `crates/isofoundry/src/cli_image.rs`, focused tests/docs
 **Estimated scope:** Medium
 
 ## Task 5: Reading FAT volumes and locating supported partitions
