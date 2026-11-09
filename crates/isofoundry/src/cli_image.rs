@@ -19,7 +19,7 @@ pub const USAGE: &str = "  create-image SRC... --out FILE.iso [--label L] [--fs 
                        Convert ISO, BIN/CUE, CCD, NRG, MDS, CHD (format from --to or extension)\n\
   edit-image IMAGE --out NEW [--add DIR=PATH] [--remove P] [--rename P=NAME]\n\
        [--mkdir P] [--label L]   Change an image and save it as a new file (options repeat, run in order)\n\
-  extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660]\n\
+  extract IMAGE --out DIR [--path P] [--fs udf|joliet|iso9660|xdvdfs]\n\
                        Copy files out of an image (all, or the file/folder P)\n\
   checksum FILE [--algo crc32,md5,sha1,sha256] [--dat OUT.dat]\n\
                        Hash a file (default: all four); optionally write a .dat\n\
@@ -77,7 +77,8 @@ fn fs_kind(s: &str) -> Result<FsKind, String> {
         "udf" => Ok(FsKind::Udf),
         "joliet" => Ok(FsKind::Joliet),
         "iso9660" | "iso" => Ok(FsKind::Iso9660),
-        o => Err(format!("unknown file system {o} (udf, joliet, iso9660)")),
+        "xdvdfs" | "xiso" => Ok(FsKind::Xdvdfs),
+        o => Err(format!("unknown file system {o} (udf, joliet, iso9660, xdvdfs)")),
     }
 }
 
@@ -574,6 +575,40 @@ mod tests {
         p
     }
 
+    fn xiso_fixture() -> PathBuf {
+        let d = tmp("xiso");
+        std::fs::create_dir_all(&d).unwrap();
+        let mut image = vec![0u8; 64 * if_image::SECTOR];
+        let header = 32 * if_image::SECTOR;
+        image[header..header + 20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+        image[header + 20..header + 24].copy_from_slice(&40u32.to_le_bytes());
+        image[header + 24..header + 28].copy_from_slice(&(if_image::SECTOR as u32).to_le_bytes());
+        image[header + 0x7ec..header + 0x7ec + 20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+
+        let root = 40 * if_image::SECTOR;
+        image[root..root + if_image::SECTOR].fill(0xff);
+        image[root..root + 4].fill(0);
+        image[root + 4..root + 8].copy_from_slice(&42u32.to_le_bytes());
+        image[root + 8..root + 12].copy_from_slice(&(if_image::SECTOR as u32).to_le_bytes());
+        image[root + 12] = 0x10;
+        image[root + 13] = 3;
+        image[root + 14..root + 17].copy_from_slice(b"sub");
+
+        let child = 42 * if_image::SECTOR;
+        image[child..child + if_image::SECTOR].fill(0xff);
+        image[child..child + 4].fill(0);
+        image[child + 4..child + 8].copy_from_slice(&43u32.to_le_bytes());
+        image[child + 8..child + 12].copy_from_slice(&5u32.to_le_bytes());
+        image[child + 12] = 0x20;
+        image[child + 13] = 9;
+        image[child + 14..child + 23].copy_from_slice(b"hello.txt");
+        image[43 * if_image::SECTOR..43 * if_image::SECTOR + 5].copy_from_slice(b"hello");
+
+        let path = d.join("game.iso");
+        std::fs::write(&path, image).unwrap();
+        path
+    }
+
     #[test]
     fn info_json() {
         let (code, out, _) = call(&["image-info", &fixture("boot.iso"), "--json"]);
@@ -596,6 +631,30 @@ mod tests {
         std::fs::remove_dir_all(d).unwrap();
         let (code, _, err) = call(&["extract", &fixture("udf.iso"), "--out", "x", "--path", "nope"]);
         assert_eq!(code, 11, "{err}");
+    }
+
+    #[test]
+    fn image_info_and_extract_support_xiso() {
+        let image = xiso_fixture();
+        let (code, out, err) = call(&["image-info", image.to_str().unwrap(), "--json"]);
+        assert_eq!(code, 0, "{err}");
+        let info: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+        assert_eq!(info["file_systems"], json!(["XDVDFS"]));
+
+        let dest = image.parent().unwrap().join("extracted");
+        let (code, _, err) = call(&[
+            "extract",
+            image.to_str().unwrap(),
+            "--out",
+            dest.to_str().unwrap(),
+            "--path",
+            "sub",
+            "--fs",
+            "xdvdfs",
+        ]);
+        assert_eq!(code, 0, "{err}");
+        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
     }
 
     #[test]

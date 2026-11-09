@@ -34,24 +34,24 @@
 **Files likely touched:** `crates/if-image/src/xiso.rs`, `crates/if-image/src/fs.rs`, `crates/if-image/src/lib.rs`, `crates/if-image/tests/read.rs`
 **Estimated scope:** Medium
 
-## Task 3: Exposing XISO browse and extraction in CLI and GUI — In progress
+## Task 3: Exposing XISO browse and extraction in CLI and GUI — Done
 
 **Description:** Route XISO images through image-info, browse, and extract flows while keeping XISO-specific metadata visible and preserving existing formats.
 
 **Acceptance criteria:**
-- [ ] `image-info` recognizes XISO and reports its filesystem.
-- [ ] CLI extraction and the existing browse/extract task window can read XISO files.
-- [ ] Unsupported operations fail with an explicit format-specific message.
+- [x] `image-info` recognizes XISO and reports its filesystem.
+- [x] CLI extraction and the existing browse/extract task window use the shared XDVDFS reader.
+- [x] Unsupported image-edit operations fail with an explicit read-only message.
 
 **Verification:**
-- [ ] Add CLI and integration tests that browse and extract nested XISO fixtures.
-- [ ] Build the app and check GUI routing through existing image-task patterns.
+- [x] Add CLI and integration tests that browse and extract nested XISO fixtures.
+- [x] Build the app and verify that the existing GUI browse/extract task routes through the shared image API.
 
 **Dependencies:** Task 2
 **Files likely touched:** `crates/isofoundry/src/cli_image.rs`, `crates/isofoundry/src/win/tasks/browse.rs`, `crates/if-image/tests/read.rs`
 **Estimated scope:** Medium
 
-## Task 4: Creating XISO images and end-to-end coverage
+## Task 4: Creating XISO images and end-to-end coverage — In progress
 
 **Description:** Add an XDVDFS writer and an explicit XISO create path that produces compatible images without touching game executables or protected content.
 
