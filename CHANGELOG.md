@@ -7,6 +7,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ### Docs
 
 - Added Ventoy, YUMI, Universal USB Installer, XBOOT, LiveUSB Install and balenaEtcher to the references, roadmap (multiboot and USB-safety items) and credits. Ideas only; no code used.
+- README: TL;DR and Status now describe 1.0.0 (they still said 0.2.0), Status is newest-first, and the backup section no longer says "in development, 0.6.0".
 
 ## [1.0.0] - 2026-11-08
 
