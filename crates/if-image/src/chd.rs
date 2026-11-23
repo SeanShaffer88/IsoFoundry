@@ -647,7 +647,7 @@ pub fn write_cd(src: &mut dyn RawDisc, dest: &Path, progress: &mut dyn FnMut(u64
                     sub = src.read_sub(i, rel)?;
                 }
                 if t.kind == TrackKind::Audio {
-                    for p in s.chunks_exact_mut(2) {
+                    for p in s.as_chunks_mut::<2>().0 {
                         p.swap(0, 1);
                     }
                 }
@@ -847,9 +847,11 @@ impl Chd {
             let mut m = vec![0u8; hunks * 4];
             f.seek(SeekFrom::Start(map_off))?;
             f.read_exact(&mut m)?;
-            m.chunks_exact(4)
+            m.as_chunks::<4>()
+                .0
+                .iter()
                 .map(|c| {
-                    let off = u32::from_be_bytes(c.try_into().unwrap()) as u64 * hunkbytes as u64;
+                    let off = u32::from_be_bytes(*c) as u64 * hunkbytes as u64;
                     MapEntry { comp: C_NONE, len: hunkbytes as u32, offset: off, crc: 0 }
                 })
                 .collect()
@@ -1027,7 +1029,7 @@ impl RawDisc for Chd {
         self.read_frame(tr.offset + (rel + stored) as u64, &mut f)?;
         out.copy_from_slice(&f[..RAW]);
         if tr.kind == TrackKind::Audio {
-            for p in out.chunks_exact_mut(2) {
+            for p in out.as_chunks_mut::<2>().0 {
                 p.swap(0, 1);
             }
         }

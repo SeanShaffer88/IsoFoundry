@@ -86,7 +86,7 @@ impl SectorSource for MemSource {
     }
 
     fn read_sectors(&mut self, lba: u64, buf: &mut [u8]) -> Result<()> {
-        if buf.len() % SECTOR != 0 {
+        if !buf.len().is_multiple_of(SECTOR) {
             return crate::bad("sector read buffer is not 2048-byte aligned");
         }
         let count = (buf.len() / SECTOR) as u64;

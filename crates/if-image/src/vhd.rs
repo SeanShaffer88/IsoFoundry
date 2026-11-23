@@ -46,7 +46,7 @@ impl VhdFile {
         }
 
         let bytes = be64(&footer, 48);
-        if bytes == 0 || bytes > MAX_VIRTUAL_SIZE || bytes % VHD_SECTOR != 0 {
+        if bytes == 0 || bytes > MAX_VIRTUAL_SIZE || !bytes.is_multiple_of(VHD_SECTOR) {
             return bad("VHD virtual size is invalid or unsupported");
         }
         let layout = match be32(&footer, 60) {
@@ -97,7 +97,7 @@ impl SectorSource for VhdFile {
     }
 
     fn read_sectors(&mut self, lba: u64, buf: &mut [u8]) -> Result<()> {
-        if buf.len() % SECTOR != 0 {
+        if !buf.len().is_multiple_of(SECTOR) {
             return bad("sector read buffer is not 2048-byte aligned");
         }
         let start =
@@ -182,7 +182,7 @@ fn read_dynamic(
 fn parse_dynamic(file: &mut File, header_offset: u64, footer_offset: u64, bytes: u64) -> Result<(u64, u64, Vec<u32>)> {
     let header_end =
         header_offset.checked_add(1024).ok_or_else(|| crate::Error::Format("VHD header offset overflow".into()))?;
-    if header_offset % VHD_SECTOR != 0 || header_offset < VHD_SECTOR || header_end > footer_offset {
+    if !header_offset.is_multiple_of(VHD_SECTOR) || header_offset < VHD_SECTOR || header_end > footer_offset {
         return bad("dynamic VHD header is outside the file");
     }
 
@@ -203,7 +203,7 @@ fn parse_dynamic(file: &mut File, header_offset: u64, footer_offset: u64, bytes:
         || max_entries > MAX_BAT_ENTRIES
         || !(VHD_SECTOR..=MAX_BLOCK_SIZE).contains(&block_size)
         || !block_size.is_power_of_two()
-        || block_size % VHD_SECTOR != 0
+        || !block_size.is_multiple_of(VHD_SECTOR)
     {
         return bad("dynamic VHD block map or block size is unsupported");
     }
@@ -218,7 +218,7 @@ fn parse_dynamic(file: &mut File, header_offset: u64, footer_offset: u64, bytes:
     let table_end = table_offset
         .checked_add(table_bytes)
         .ok_or_else(|| crate::Error::Format("VHD block map offset overflow".into()))?;
-    if table_offset % VHD_SECTOR != 0 || table_offset < header_end || table_end > footer_offset {
+    if !table_offset.is_multiple_of(VHD_SECTOR) || table_offset < header_end || table_end > footer_offset {
         return bad("dynamic VHD block map is outside the file");
     }
 
@@ -228,8 +228,7 @@ fn parse_dynamic(file: &mut File, header_offset: u64, footer_offset: u64, bytes:
         .ok_or_else(|| crate::Error::Format("VHD block map is too large".into()))?;
     let mut raw_entries = vec![0; needed_bytes];
     read_at(file, table_offset, &mut raw_entries)?;
-    let blocks: Vec<u32> =
-        raw_entries.chunks_exact(4).map(|entry| u32::from_be_bytes(entry.try_into().unwrap())).collect();
+    let blocks: Vec<u32> = raw_entries.as_chunks::<4>().0.iter().map(|entry| u32::from_be_bytes(*entry)).collect();
 
     let sectors_per_block = block_size / VHD_SECTOR;
     let bitmap_size = sectors_per_block.div_ceil(8).div_ceil(VHD_SECTOR) * VHD_SECTOR;
