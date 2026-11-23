@@ -62,8 +62,15 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | B-16 | The helper checked the Windows-folder disk as the boot disk too; it did not independently identify a separate EFI/System Reserved disk. | High | Mitigated by D-056: all physical-disk writes now fail closed; re-enable only after independent boot-disk detection is verified on Windows. |
 | B-17 | GUI USB jobs depended only on a disk number, so a re-used number could point at a different device; CLI also required `--yes` even for non-destructive USB reads. | Medium | Fixed in code: jobs carry model, size and available storage serial and the helper rechecks them after volume locking; reads no longer require `--yes`. Windows-target CI still required. |
 | B-18 | Support claims and build settings disagreed: Windows 10/ARM64 remained listed, and the Rust 1.82 floor was below the locked dependency set. | Medium | Fixed: Windows 11 x64 only; package/CI/installer settings aligned; Rust floor now matches the lockfile. |
-| B-19 | The dependency advisory audit could not run because `cargo-audit` is unavailable in the environment. | Medium | Open: install/run `cargo audit` in a supported environment; no advisory result is claimed. |
+| B-19 | Dependency advisory scan. | Medium | CI runs `cargo audit`; scan results and ten non-blocking upstream warnings are recorded below. No advisories are suppressed. |
 | B-20 | The native UI did not follow FluentGruv's palette or workspace/drawer pattern. | Medium | Fixed in code: exact dark/light tokens, Windows high-contrast colors, Tasks/Activity modes, details/activity drawers, radial progress and collapsible task logs. Linux palette/layout tests added; Windows CI and visual checks still required. |
+
+## 2026-11-23 — Cargo advisory scan
+
+**Scope:** `cargo-audit` 0.23.0 scanned 117 locked crate dependencies in GitHub Actions. The command succeeded and reported ten allowed warning entries; no blocking vulnerability findings were reported. The CI job does not suppress these warnings.
+
+- [`paste` 1.0.15 — RUSTSEC-2024-0436](https://rustsec.org/advisories/RUSTSEC-2024-0436): unmaintained; RustSec reports no fixed upgrade. It is pulled in by `lofty` for compile-time macro generation. The latest inspected `lofty` release (0.25.5) still depends on `paste` 1.0.15.
+- [`heapless` 0.8.0 — nine unsoundness advisories](https://rustsec.org/advisories/RUSTSEC-2026-0574): RUSTSEC-2026-0574 through RUSTSEC-2026-0582 are patched in `heapless` 0.9.4+. The dependency path is `flacenc` 0.5.1, which still requires `heapless` 0.8.0. Source review found `flacenc` uses `heapless::Vec`; it does not call the affected `Deque`, `IndexMap`, pool, `SortedLinkedList`, `Spsc`, or `Vec::IntoIter` APIs. The package warning remains visible because its dependency version is affected; reevaluate when `flacenc` publishes a compatible update.
 
 ## 2026-11-07 — M0 shell
 
