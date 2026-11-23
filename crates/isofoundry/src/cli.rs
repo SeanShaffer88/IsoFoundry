@@ -207,7 +207,7 @@ impl Out<'_> {
 
     /// Progress on stderr in steps of 10% (text mode only).
     pub(crate) fn progress(&mut self, pct: u32) {
-        if !self.json && pct % 10 == 0 {
+        if !self.json && pct.is_multiple_of(10) {
             let _ = writeln!(self.err, "{pct}%");
         }
     }

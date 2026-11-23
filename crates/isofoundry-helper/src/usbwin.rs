@@ -356,7 +356,7 @@ impl BlockDevice for PhysicalDevice {
     }
 
     fn write_at(&mut self, off: u64, buf: &[u8]) -> Result<(), usbwriter::Error> {
-        if off % SECTOR == 0 && buf.len() as u64 % SECTOR == 0 {
+        if off.is_multiple_of(SECTOR) && (buf.len() as u64).is_multiple_of(SECTOR) {
             return self.write_sectors(off, buf).map_err(usbwriter::Error);
         }
         // Read-modify-write the covering sectors.

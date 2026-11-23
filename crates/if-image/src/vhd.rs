@@ -30,7 +30,7 @@ impl VhdFile {
     pub fn open(path: &Path) -> Result<Self> {
         let mut file = File::open(path)?;
         let file_len = file.metadata()?.len();
-        if file_len < FOOTER_SIZE || file_len % VHD_SECTOR != 0 {
+        if file_len < FOOTER_SIZE || !file_len.is_multiple_of(VHD_SECTOR) {
             return bad("VHD file is truncated or not sector-aligned");
         }
 

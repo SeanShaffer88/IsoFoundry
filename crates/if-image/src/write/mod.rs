@@ -606,7 +606,7 @@ impl Plan {
             t.extend_from_slice(&if big_endian { lba.to_be_bytes() } else { lba.to_le_bytes() });
             t.extend_from_slice(&if big_endian { parent.to_be_bytes() } else { parent.to_le_bytes() });
             t.extend_from_slice(&ident);
-            if ident.len() % 2 == 1 {
+            if !ident.len().is_multiple_of(2) {
                 t.push(0);
             }
         }
