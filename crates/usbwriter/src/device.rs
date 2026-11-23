@@ -142,6 +142,9 @@ pub struct DiskInfo {
     pub number: u32,
     /// Model / product string, "disk image file" for file targets.
     pub model: String,
+    /// Stable device identifier when the storage descriptor supplies one.
+    /// Internal use only; callers must not display or log it.
+    pub device_id: String,
     pub size_bytes: u64,
     pub bus: Bus,
     /// Removable-media flag from the storage descriptor.
@@ -204,10 +207,10 @@ pub fn describe(d: &DiskInfo) -> String {
     s
 }
 
-/// Typed-confirmation threshold from ARCHITECTURE.md §7: disks larger
-/// than 64 GB, or with any mounted volumes, need the stronger confirm.
+/// Every physical disk needs a typed confirmation before a GUI write.
+/// File-backed test targets do not; they cannot erase a physical device.
 pub fn needs_typed_confirmation(d: &DiskInfo) -> bool {
-    d.size_bytes > 64_000_000_000 || !d.volume_labels.is_empty()
+    !d.is_file_target
 }
 
 #[cfg(test)]
@@ -218,6 +221,7 @@ mod tests {
         DiskInfo {
             number: 2,
             model: "SanDisk Ultra".into(),
+            device_id: "SERIAL-1".into(),
             size_bytes: 32_000_000_000,
             bus: Bus::Usb,
             removable: true,
@@ -259,14 +263,11 @@ mod tests {
     }
 
     #[test]
-    fn typed_confirmation_thresholds() {
+    fn physical_disks_need_typed_confirmation() {
         let mut d = disk();
-        assert!(!needs_typed_confirmation(&d));
-        d.volume_labels.push("SETUP".into());
         assert!(needs_typed_confirmation(&d));
-        let mut big = disk();
-        big.size_bytes = 128_000_000_000;
-        assert!(needs_typed_confirmation(&big));
+        d.is_file_target = true;
+        assert!(!needs_typed_confirmation(&d));
     }
 
     #[test]

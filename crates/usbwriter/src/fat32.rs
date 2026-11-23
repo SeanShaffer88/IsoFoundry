@@ -290,7 +290,7 @@ impl<D: BlockDevice> Fat32Volume<D> {
     fn existing_sfns(&mut self, dir_cluster: u32) -> Result<Vec<[u8; 11]>> {
         let bytes = self.read_dir(dir_cluster)?;
         let mut out = Vec::new();
-        for e in bytes.chunks_exact(32) {
+        for e in bytes.as_chunks::<32>().0 {
             if e[0] == 0x00 {
                 break;
             }
@@ -316,7 +316,7 @@ impl<D: BlockDevice> Fat32Volume<D> {
     fn find_child_dir(&mut self, parent: u32, name: &str) -> Result<Option<u32>> {
         let bytes = self.read_dir(parent)?;
         let mut pending_lfn = String::new();
-        for e in bytes.chunks_exact(32) {
+        for e in bytes.as_chunks::<32>().0 {
             if e[0] == 0x00 {
                 break;
             }
@@ -403,7 +403,7 @@ impl<D: BlockDevice> Fat32Volume<D> {
                 let mut buf = vec![0u8; cb];
                 let off = self.cluster_off(*c);
                 self.dev.read_at(off, &mut buf)?;
-                for (ei, e) in buf.chunks_exact(32).enumerate() {
+                for (ei, e) in buf.as_chunks::<32>().0.iter().enumerate() {
                     let idx = ci * (cb / 32) + ei;
                     slots.push((idx as u64 * 32, ci));
                     if e[0] == 0x00 || e[0] == 0xE5 {
@@ -720,7 +720,7 @@ mod tests {
         // Walk root: find HELLO.TXT via the LFN/SFN listing helper.
         let root = vol.read_dir(2).unwrap();
         let mut found = false;
-        for e in root.chunks_exact(32) {
+        for e in root.as_chunks::<32>().0 {
             if e[0] == 0 {
                 break;
             }
@@ -749,7 +749,7 @@ mod tests {
         // BOOTX64.EFI content round-trips through its chain.
         let bytes = vol.read_dir(boot).unwrap();
         let mut data = Vec::new();
-        for e in bytes.chunks_exact(32) {
+        for e in bytes.as_chunks::<32>().0 {
             if &e[0..11] == b"BOOTX64 EFI" {
                 let lo = u16::from_le_bytes(e[26..28].try_into().unwrap()) as u32;
                 let hi = u16::from_le_bytes(e[20..22].try_into().unwrap()) as u32;

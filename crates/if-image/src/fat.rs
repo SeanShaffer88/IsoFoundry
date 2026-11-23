@@ -497,7 +497,7 @@ impl Fat {
         let mut entries = Vec::new();
         let mut names = HashSet::new();
         let mut long_name = LongName::default();
-        for record in bytes.chunks_exact(32) {
+        for record in bytes.as_chunks::<32>().0 {
             if record[0] == 0 {
                 break;
             }
@@ -634,7 +634,7 @@ impl LongName {
         }
         let mut units = Vec::with_capacity(13);
         for range in [1..11, 14..26, 28..32] {
-            for pair in record[range].chunks_exact(2) {
+            for pair in record[range].as_chunks::<2>().0 {
                 units.push(u16::from_le_bytes([pair[0], pair[1]]));
             }
         }

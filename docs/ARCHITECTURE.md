@@ -61,8 +61,8 @@ Selection: the job asks for capabilities; the router picks IMAPI2 when it suffic
 Every job follows: **plan → preview → confirm (proportional) → journal → execute → verify → report**.
 
 - Journal: `%LOCALAPPDATA%\IsoFoundry\journal\<job-id>.json` written atomically (write temp, `MoveFileExW` replace) at each phase. On next launch, unfinished journals produce a recovery prompt (e.g. "Disc in E: may be unfinalized: close session / leave as is").
-- Destructive targets (erase disc, write USB) show the device model, size, volume labels and a typed-confirmation for disks > 64 GB or any disk with mounted volumes.
-- USB writer refuses: system disk, disk holding the pagefile/boot volume, fixed disks (unless `--dev-allow-vdisk` + VHDX).
+- Destructive targets (erase disc, write USB) show the device model, size and volume labels. Physical-disk USB writes are disabled until a separate EFI/System Reserved boot disk can be reliably blocked; disk-image test writes remain available.
+- Physical USB reads recheck the selected model, size and available serial. If physical writes are re-enabled, the helper must enumerate, map, lock and dismount every volume on a target; any failure must abort before writing.
 - Verify after write is on by default for data and image burns.
 - Cancel: every loop checks a `CancelToken`; disc writes cancel at a safe point and finalize or leave the disc appendable as chosen.
 
@@ -103,18 +103,18 @@ isofoundry extract <image> --out <dir>
 isofoundry checksum <file|drive> [--algo sha256] | compare <a> <b>
 isofoundry surface-test --drive E: [--quality]
 isofoundry info [--drive E:] 
-isofoundry usb write <image> --disk N [--scheme gpt|mbr]    (elevates)
-isofoundry usb read --disk N --out x.img                    (elevates)
+isofoundry usb write <image> --file disk.img --dev-allow-vdisk  (image-file test only)
+isofoundry usb read --disk N --out x.img                         (elevates)
 isofoundry backup <path>... --drive E:|--out <dir> [--encrypt]
 isofoundry restore <manifest> --out <dir>
 ```
 
-Global: `--json`, `--yes` (skip confirms, refused for destructive ops without `--disk`/`--drive` explicitly set), `--log <file>`.
+Physical-disk USB writes are disabled until independent boot-disk protection is verified. Global: `--json`, `--yes` (skip confirms, refused for destructive ops without `--disk`/`--drive` explicitly set), `--log <file>`.
 Exit codes: 0 ok, 1 generic, 2 usage, 3 cancelled, 10 no drive/media, 11 media incompatible, 12 write failed, 13 verify mismatch, 20 elevation denied, 30 I/O error.
 
 ## 9. Data and settings
 
-- Settings: `settings.toml` (versioned `schema = 1`), portable mode when `IsoFoundry.portable` exists next to the exe (`data\` beside the exe; `Data\settings` for the PortableApps format).
+- Settings: `settings.toml` (versioned `schema = 1`), including workspace mode and drawer state; portable mode when `IsoFoundry.portable` exists next to the exe (`data\` beside the exe; `Data\settings` for the PortableApps format).
 - Logs: rolling text logs, Help → Open log folder; Export diagnostics bundle (redacted).
 - Drive offsets table, codec presets: bundled read-only data files.
 

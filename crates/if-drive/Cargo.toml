@@ -3,6 +3,7 @@ name = "if-drive"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Optical drive layer for IsoFoundry: IMAPI2 backend on Windows, plus a fake drive used for development and tests."
 
 [dependencies]

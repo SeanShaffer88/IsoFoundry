@@ -19,7 +19,7 @@ static NEXT_UUID: AtomicU64 = AtomicU64::new(0);
 
 fn validate_source(source: &dyn SectorSource) -> Result<u64> {
     let bytes = source.byte_len();
-    if bytes == 0 || bytes > MAX_VIRTUAL_SIZE || bytes % VHD_SECTOR != 0 {
+    if bytes == 0 || bytes > MAX_VIRTUAL_SIZE || !bytes.is_multiple_of(VHD_SECTOR) {
         return bad("VHD source size must be a nonzero, 512-byte-aligned virtual disk no larger than 2 TiB");
     }
     if source.sectors() < bytes.div_ceil(SECTOR as u64) {

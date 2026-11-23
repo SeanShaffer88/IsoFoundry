@@ -606,7 +606,7 @@ impl Plan {
             t.extend_from_slice(&if big_endian { lba.to_be_bytes() } else { lba.to_le_bytes() });
             t.extend_from_slice(&if big_endian { parent.to_be_bytes() } else { parent.to_le_bytes() });
             t.extend_from_slice(&ident);
-            if ident.len() % 2 == 1 {
+            if !ident.len().is_multiple_of(2) {
                 t.push(0);
             }
         }
@@ -979,7 +979,7 @@ fn copy_source(out: &mut Out<impl Write>, lba: u64, src: &Source, size: u64, pat
         out.w.write_all(&buf[..n])?;
         done += n as u64;
         out.at += n as u64 / S;
-        if n as u64 % S != 0 {
+        if !(n as u64).is_multiple_of(S) {
             let pad = S - n as u64 % S;
             out.w.write_all(&vec![0u8; pad as usize])?;
             out.at += 1;

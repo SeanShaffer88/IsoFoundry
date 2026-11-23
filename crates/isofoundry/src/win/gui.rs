@@ -14,6 +14,8 @@ use if_core::paths::DataDirs;
 use if_core::settings::{AutoAction, LogLevel, Settings, WindowPlacement};
 use if_core::{strings, tasks};
 use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::ffi::c_void;
 use std::process::ExitCode;
 use windows_sys::Win32::Foundation::{
     GetLastError, COLORREF, ERROR_ALREADY_EXISTS, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
@@ -21,6 +23,7 @@ use windows_sys::Win32::Foundation::{
 use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE};
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
 use windows_sys::Win32::System::Threading::CreateMutexW;
 use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows_sys::Win32::UI::Controls::Dialogs::{
@@ -64,6 +67,11 @@ const IDM_ROADMAP: u16 = 121;
 const IDM_REPORT: u16 = 122;
 const IDM_CLI_HELP: u16 = 123;
 const IDM_ABOUT: u16 = 124;
+const ID_MODE_TASKS: u16 = 4000;
+const ID_MODE_ACTIVITY: u16 = 4001;
+const ID_TOGGLE_DETAILS: u16 = 4002;
+const ID_TOGGLE_LOGS: u16 = 4003;
+const ID_ACTIVITY_EDIT: u16 = 4004;
 
 const LEVELS: [LogLevel; 4] = [LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug];
 
@@ -79,7 +87,7 @@ impl Fonts {
         Fonts {
             button: font(px(13, dpi), 600, "Segoe UI"),
             label: font(px(13, dpi), 400, "Segoe UI"),
-            logo: font(px(36, dpi), 700, "Segoe UI"),
+            logo: font(px(22, dpi), 700, "Segoe UI"),
             mono: font(px(13, dpi), 400, "Consolas"),
         }
     }
@@ -125,6 +133,26 @@ struct Control {
     arrow: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkspaceMode {
+    Tasks,
+    Activity,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HeaderAction {
+    Tasks,
+    Activity,
+    Details,
+    Logs,
+}
+
+#[derive(Clone, Copy)]
+struct HeaderControl {
+    hwnd: HWND,
+    action: HeaderAction,
+}
+
 struct App {
     hwnd: HWND,
     dirs: DataDirs,
@@ -135,6 +163,13 @@ struct App {
     fonts: Fonts,
     layout: Layout,
     controls: Vec<Control>,
+    header_controls: Vec<HeaderControl>,
+    mode: WorkspaceMode,
+    details_open: bool,
+    activity_open: bool,
+    activity_edit: HWND,
+    activity_lines: VecDeque<String>,
+    selected_task: Option<usize>,
     hot: Option<HWND>,
     focus_task: Option<usize>,
     shield: HICON,
@@ -183,12 +218,34 @@ pub(crate) fn palette() -> Palette {
     with_app(|a| a.palette).unwrap_or(Palette::DARK)
 }
 
+pub(crate) fn refresh_palette() -> Palette {
+    let p = current_palette();
+    with_app(|a| a.palette = p);
+    p
+}
+
 pub(crate) fn note_log(line: &str, error: bool) {
     with_app(|a| {
         if error {
             a.log.error(line.to_string());
         } else {
             a.log.info(line.to_string());
+        }
+        let entry = format!("{}  {line}", if error { "ERROR" } else { "INFO " });
+        a.activity_lines.push_back(entry);
+        while a.activity_lines.len() > 200 {
+            a.activity_lines.pop_front();
+        }
+        let body = a.activity_lines.iter().cloned().collect::<Vec<_>>().join("\r\n");
+        let body = wide(&body);
+        // SAFETY: updates our read-only activity edit; the string remains alive through the calls.
+        unsafe {
+            if !a.activity_edit.is_null() {
+                SetWindowTextW(a.activity_edit, body.as_ptr());
+                let end = GetWindowTextLengthW(a.activity_edit);
+                SendMessageW(a.activity_edit, EM_SETSEL, end as usize, end as isize);
+                SendMessageW(a.activity_edit, EM_SCROLLCARET, 0, 0);
+            }
         }
     });
 }
@@ -268,7 +325,7 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
             log.error(format!("cannot create the main window (Windows error {})", GetLastError()));
             return ExitCode::from(if_core::error::Exit::Generic.code() as u8);
         }
-        let dark: i32 = 1;
+        let dark = i32::from(current_palette().dark_theme);
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
 
         let dpi = GetDpiForWindow(hwnd).max(96);
@@ -280,6 +337,9 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
             std::ptr::null_mut()
         };
         let (cw, ch) = layout::default_client(dpi);
+        let mode = if settings.activity_mode { WorkspaceMode::Activity } else { WorkspaceMode::Tasks };
+        let details_open = settings.details_open;
+        let activity_open = settings.activity_open && !settings.activity_mode;
         let app = App {
             hwnd,
             dirs,
@@ -288,8 +348,22 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
             dpi,
             palette: current_palette(),
             fonts: Fonts::new(dpi),
-            layout: layout::compute(cw, ch, dpi),
+            layout: layout::compute_workspace(
+                cw,
+                ch,
+                dpi,
+                mode == WorkspaceMode::Activity,
+                details_open,
+                activity_open,
+            ),
             controls: Vec::new(),
+            header_controls: Vec::new(),
+            mode,
+            details_open,
+            activity_open,
+            activity_edit: std::ptr::null_mut(),
+            activity_lines: VecDeque::new(),
+            selected_task: None,
             hot: None,
             focus_task: None,
             shield,
@@ -301,9 +375,18 @@ pub fn run(dirs: DataDirs, settings: Settings, log: Logger) -> ExitCode {
         APP.with(|a| *a.borrow_mut() = Some(app));
         create_controls(hwnd);
         place_window(hwnd);
-        // Keyboard users start on the first task, as the focus ring shows.
-        if let Some(first) = with_app(|a| a.controls.first().map(|c| c.hwnd)).flatten() {
-            SetFocus(first);
+        relayout_window(hwnd);
+        // Keyboard users start in the active workspace.
+        if let Some(focus) = with_app(|a| {
+            if a.mode == WorkspaceMode::Activity {
+                Some(a.activity_edit)
+            } else {
+                a.controls.first().map(|c| c.hwnd)
+            }
+        })
+        .flatten()
+        {
+            SetFocus(focus);
         }
         with_app(|a| {
             a.log.info(format!("window ready at {} DPI", a.dpi));
@@ -375,6 +458,14 @@ fn pre_translate(main: HWND, msg: &MSG) -> bool {
     if msg.message != WM_KEYDOWN && msg.message != WM_SYSKEYDOWN {
         return false;
     }
+    let key = msg.wParam as u16;
+    let alt = msg.message == WM_SYSKEYDOWN;
+    if key == VK_ESCAPE && !alt {
+        let root = if msg.hwnd.is_null() { main } else { unsafe { GetAncestor(msg.hwnd, GA_ROOT) } };
+        if root == main && close_workspace_drawer(main) {
+            return true;
+        }
+    }
     // SAFETY: reads the focused window handle of this thread.
     let focus = unsafe { GetFocus() };
     let Some((idx, ctl)) =
@@ -382,8 +473,6 @@ fn pre_translate(main: HWND, msg: &MSG) -> bool {
     else {
         return false;
     };
-    let key = msg.wParam as u16;
-    let alt = msg.message == WM_SYSKEYDOWN;
     if key == VK_RETURN && !alt {
         // SAFETY: the focused control is one of our buttons.
         unsafe { SendMessageW(ctl.hwnd, BM_CLICK, 0, 0) };
@@ -406,6 +495,138 @@ fn pre_translate(main: HWND, msg: &MSG) -> bool {
     false
 }
 
+fn close_workspace_drawer(hwnd: HWND) -> bool {
+    let focus = unsafe { GetFocus() };
+    let (changed, fallback_focus) = with_app(|a| {
+        if a.details_open {
+            a.details_open = false;
+            (true, std::ptr::null_mut())
+        } else if a.activity_open {
+            a.activity_open = false;
+            let fallback = if focus == a.activity_edit {
+                a.header_controls.iter().find(|c| c.action == HeaderAction::Tasks).map(|c| c.hwnd)
+            } else {
+                None
+            };
+            (true, fallback.unwrap_or(std::ptr::null_mut()))
+        } else if a.mode == WorkspaceMode::Activity {
+            a.mode = WorkspaceMode::Tasks;
+            let fallback = if focus == a.activity_edit {
+                a.header_controls.iter().find(|c| c.action == HeaderAction::Tasks).map(|c| c.hwnd)
+            } else {
+                None
+            };
+            (true, fallback.unwrap_or(std::ptr::null_mut()))
+        } else {
+            (false, std::ptr::null_mut())
+        }
+    })
+    .unwrap_or((false, std::ptr::null_mut()));
+    if changed {
+        with_app(persist_workspace_state);
+        relayout_window(hwnd);
+        if !fallback_focus.is_null() {
+            unsafe { SetFocus(fallback_focus) };
+        }
+    }
+    changed
+}
+
+fn persist_workspace_state(a: &mut App) {
+    a.settings.details_open = a.details_open;
+    a.settings.activity_open = a.activity_open;
+    a.settings.activity_mode = a.mode == WorkspaceMode::Activity;
+    save_settings(a);
+}
+
+fn handle_header_command(hwnd: HWND, id: u16) -> bool {
+    let client_height = if id == ID_TOGGLE_LOGS {
+        let mut client: RECT = unsafe { std::mem::zeroed() };
+        unsafe { GetClientRect(hwnd, &mut client) };
+        client.bottom
+    } else {
+        i32::MAX
+    };
+    let changed = with_app(|a| match id {
+        ID_MODE_TASKS => {
+            a.mode = WorkspaceMode::Tasks;
+            true
+        }
+        ID_MODE_ACTIVITY => {
+            a.mode = WorkspaceMode::Activity;
+            a.activity_open = false;
+            true
+        }
+        ID_TOGGLE_DETAILS => {
+            a.details_open = !a.details_open;
+            true
+        }
+        ID_TOGGLE_LOGS => {
+            if a.mode == WorkspaceMode::Activity {
+                a.mode = WorkspaceMode::Tasks;
+                let (_, drawer_min_h) = layout::min_client_with_activity_drawer(a.dpi);
+                a.activity_open = client_height >= drawer_min_h;
+            } else {
+                let (_, drawer_min_h) = layout::min_client_with_activity_drawer(a.dpi);
+                if client_height < drawer_min_h {
+                    a.mode = WorkspaceMode::Activity;
+                    a.activity_open = false;
+                } else {
+                    a.activity_open = !a.activity_open;
+                }
+            }
+            true
+        }
+        _ => false,
+    })
+    .unwrap_or(false);
+    if changed {
+        with_app(persist_workspace_state);
+        relayout_window(hwnd);
+        if with_app(|a| a.mode == WorkspaceMode::Activity).unwrap_or(false) {
+            if let Some(edit) = with_app(|a| a.activity_edit).filter(|h| !h.is_null()) {
+                // SAFETY: activity edit belongs to the main window.
+                unsafe { SetFocus(edit) };
+            }
+        }
+    }
+    changed
+}
+
+fn relayout_window(hwnd: HWND) {
+    // SAFETY: resizes the main window only when an open drawer needs more
+    // room, then relayouts the app's own child controls.
+    unsafe {
+        let mut client: RECT = std::mem::zeroed();
+        GetClientRect(hwnd, &mut client);
+        let (dpi, needs_drawer) =
+            with_app(|a| (a.dpi, a.activity_open && a.mode == WorkspaceMode::Tasks)).unwrap_or((96, false));
+        let (_, drawer_min_h) = layout::min_client_with_activity_drawer(dpi);
+        if needs_drawer && client.bottom < drawer_min_h {
+            with_app(|a| {
+                a.mode = WorkspaceMode::Activity;
+                a.activity_open = false;
+                persist_workspace_state(a);
+            });
+        }
+        let (dpi, needs_drawer) =
+            with_app(|a| (a.dpi, a.activity_open && a.mode == WorkspaceMode::Tasks)).unwrap_or((96, false));
+        let (min_w, min_h) =
+            if needs_drawer { layout::min_client_with_activity_drawer(dpi) } else { layout::min_client(dpi) };
+        if client.right < min_w || client.bottom < min_h {
+            let mut window: RECT = std::mem::zeroed();
+            GetWindowRect(hwnd, &mut window);
+            let mut required = RECT { left: 0, top: 0, right: min_w, bottom: min_h };
+            AdjustWindowRectExForDpi(&mut required, WS_OVERLAPPEDWINDOW, 1, WS_EX_CONTROLPARENT, dpi);
+            let width = (window.right - window.left).max(required.right - required.left);
+            let height = (window.bottom - window.top).max(required.bottom - required.top);
+            SetWindowPos(hwnd, std::ptr::null_mut(), 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            GetClientRect(hwnd, &mut client);
+        }
+        with_app(|a| relayout(a, client.right, client.bottom));
+    }
+}
+
 /// Next control in the arrow-key direction, by grid position.
 fn neighbor(a: &App, idx: usize, key: u16) -> Option<HWND> {
     let c = a.controls[idx];
@@ -414,7 +635,7 @@ fn neighbor(a: &App, idx: usize, key: u16) -> Option<HWND> {
     let pick = |row: usize, col: usize, arrow: bool| -> Option<HWND> {
         let t = cells.iter().position(|x| x.row == row && x.col == col)?;
         let want_arrow = arrow && cells[t].arrow.is_some();
-        a.controls.iter().find(|k| k.task == t && k.arrow == want_arrow).map(|k| k.hwnd)
+        a.controls.iter().find(|k| k.task == t && k.arrow == want_arrow && control_visible(a, **k)).map(|k| k.hwnd)
     };
     match key {
         VK_UP if cell.row > 0 => pick(cell.row - 1, cell.col, false).or_else(|| pick(cell.row - 1, 0, false)),
@@ -549,6 +770,68 @@ fn create_controls(parent: HWND) {
         SendMessageW(tt, TTM_SETDELAYTIME, TTDT_AUTOPOP as usize, 20_000);
         tt
     };
+    let mut header_controls = Vec::new();
+    for (id, label, tip, action) in [
+        (ID_MODE_TASKS, "Tasks", "Show all tools.", HeaderAction::Tasks),
+        (ID_MODE_ACTIVITY, "Activity", "Review recent results and errors.", HeaderAction::Activity),
+        (ID_TOGGLE_DETAILS, "Details", "Show selected-tool details; Esc closes.", HeaderAction::Details),
+        (ID_TOGGLE_LOGS, "Logs", "Show recent activity; Esc closes.", HeaderAction::Logs),
+    ] {
+        let name = wide(label);
+        let mut tipw = wide(tip);
+        // SAFETY: owner-drawn toolbar controls; tooltip text is copied by the control.
+        unsafe {
+            let h = CreateWindowExW(
+                0,
+                button.as_ptr(),
+                name.as_ptr(),
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW as u32,
+                0,
+                0,
+                10,
+                10,
+                parent,
+                id as usize as HMENU,
+                hinst,
+                std::ptr::null(),
+            );
+            SetWindowSubclass(h, Some(button_subclass), 1, 0);
+            let mut ti: TTTOOLINFOW = std::mem::zeroed();
+            ti.cbSize = std::mem::size_of::<TTTOOLINFOW>() as u32;
+            ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+            ti.hwnd = parent;
+            ti.uId = h as usize;
+            ti.lpszText = tipw.as_mut_ptr();
+            SendMessageW(tooltip, TTM_ADDTOOLW, 0, &ti as *const _ as LPARAM);
+            header_controls.push(HeaderControl { hwnd: h, action });
+        }
+    }
+    let (dpi, label_font, mono_font) = ui_metrics();
+    let edit_class = wide("EDIT");
+    let initial_activity = wide("No recent activity.");
+    // SAFETY: read-only, multiline activity view; it owns the only shell scrollbar.
+    let activity_edit = unsafe {
+        let h = CreateWindowExW(
+            0,
+            edit_class.as_ptr(),
+            initial_activity.as_ptr(),
+            WS_CHILD | WS_VSCROLL | WS_TABSTOP | (ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL) as u32,
+            0,
+            0,
+            10,
+            10,
+            parent,
+            ID_ACTIVITY_EDIT as usize as HMENU,
+            hinst,
+            std::ptr::null(),
+        );
+        SendMessageW(h, WM_SETFONT, mono_font as usize, 1);
+        SetWindowSubclass(h, Some(edit_subclass), 1, 0);
+        super::taskwin::dark_theme(h);
+        let _ = (dpi, label_font);
+        h
+    };
+    unsafe { ShowWindow(activity_edit, SW_HIDE) };
     let mut controls = Vec::new();
     for (i, t) in task_list().iter().enumerate() {
         let mut parts = vec![false];
@@ -596,6 +879,8 @@ fn create_controls(parent: HWND) {
     }
     with_app(|a| {
         a.controls = controls;
+        a.header_controls = header_controls;
+        a.activity_edit = activity_edit;
         // SAFETY: valid window handle.
         let mut rc: RECT = unsafe { std::mem::zeroed() };
         unsafe { GetClientRect(a.hwnd, &mut rc) };
@@ -667,7 +952,7 @@ fn current_palette() -> Palette {
         let on = SystemParametersInfoW(SPI_GETHIGHCONTRAST, hc.cbSize, (&mut hc as *mut HIGHCONTRASTW).cast(), 0) != 0
             && hc.dwFlags & HCF_HIGHCONTRASTON != 0;
         if !on {
-            return Palette::DARK;
+            return if app_uses_light_theme() { Palette::LIGHT } else { Palette::DARK };
         }
         let sys = |i| {
             let c = GetSysColor(i);
@@ -683,9 +968,36 @@ fn current_palette() -> Palette {
     }
 }
 
+/// Reads the Windows per-app theme preference, then the system preference.
+/// Dark is the safe fallback when the registry value is unavailable.
+fn app_uses_light_theme() -> bool {
+    unsafe {
+        let key = wide(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+        for name in ["AppsUseLightTheme", "SystemUsesLightTheme"] {
+            let value_name = wide(name);
+            let mut light = 0u32;
+            let mut size = std::mem::size_of::<u32>() as u32;
+            let result = RegGetValueW(
+                HKEY_CURRENT_USER,
+                key.as_ptr(),
+                value_name.as_ptr(),
+                RRF_RT_REG_DWORD,
+                std::ptr::null_mut(),
+                (&mut light as *mut u32).cast::<c_void>(),
+                &mut size,
+            );
+            if result == 0 {
+                return light != 0;
+            }
+        }
+    }
+    false
+}
+
 fn relayout(a: &mut App, w: i32, h: i32) {
-    a.layout = layout::compute(w, h, a.dpi);
-    let size = px(56, a.dpi);
+    a.layout =
+        layout::compute_workspace(w, h, a.dpi, a.mode == WorkspaceMode::Activity, a.details_open, a.activity_open);
+    let size = px(34, a.dpi);
     if size != a.logo_size {
         // SAFETY: icon resource 1 is embedded by build.rs; old icon destroyed once.
         unsafe {
@@ -696,25 +1008,38 @@ fn relayout(a: &mut App, w: i32, h: i32) {
         }
         a.logo_size = size;
     }
-    // SAFETY: repositions our own child windows.
+    // SAFETY: repositions and shows our own child windows.
     unsafe {
-        let mut dwp = BeginDeferWindowPos(a.controls.len() as i32);
+        for c in &a.header_controls {
+            let r = match c.action {
+                HeaderAction::Tasks => a.layout.tasks_tab,
+                HeaderAction::Activity => a.layout.activity_tab,
+                HeaderAction::Details => a.layout.details_toggle,
+                HeaderAction::Logs => a.layout.logs_toggle,
+            };
+            MoveWindow(c.hwnd, r.left, r.top, r.width(), r.height(), 1);
+        }
         for c in &a.controls {
             let cell = a.layout.cells[c.task];
             let r = if c.arrow { cell.arrow.unwrap_or(cell.main) } else { cell.main };
-            dwp = DeferWindowPos(
-                dwp,
-                c.hwnd,
-                std::ptr::null_mut(),
-                r.left,
-                r.top,
-                r.width(),
-                r.height(),
-                SWP_NOZORDER | SWP_NOACTIVATE,
-            );
+            MoveWindow(c.hwnd, r.left, r.top, r.width(), r.height(), 1);
+            ShowWindow(c.hwnd, if control_visible(a, *c) { SW_SHOW } else { SW_HIDE });
         }
-        EndDeferWindowPos(dwp);
-        InvalidateRect(a.hwnd, std::ptr::null(), 0);
+        if let Some(r) = a.layout.activity {
+            let top = r.top + px(28, a.dpi);
+            MoveWindow(
+                a.activity_edit,
+                r.left + px(8, a.dpi),
+                top,
+                r.width() - px(16, a.dpi),
+                r.bottom - top - px(8, a.dpi),
+                1,
+            );
+            ShowWindow(a.activity_edit, SW_SHOW);
+        } else {
+            ShowWindow(a.activity_edit, SW_HIDE);
+        }
+        RedrawWindow(a.hwnd, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_ALLCHILDREN);
     }
 }
 
@@ -765,43 +1090,180 @@ fn paint(hwnd: HWND) {
         with_app(|a| {
             let p = a.palette;
             fill(mem, &rc, p.bg);
-            let g = rect(a.layout.group);
-            fill(mem, &g, p.surface);
-            frame(mem, &g, p.border, 1);
-            let mut lr = rect(a.layout.label);
-            text(mem, strings::SELECT_TASK, &mut lr, p.text_muted, a.fonts.label, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            let header = rect(a.layout.header);
+            fill(mem, &header, p.surface);
+            frame(mem, &header, p.border, 1);
+            let word = "IsoFoundry";
+            let gap = px(8, a.dpi);
+            let icon_x = px(layout::MARGIN_X, a.dpi);
+            let icon_y = (a.layout.header.height() - a.logo_size) / 2;
+            if !a.logo.is_null() {
+                DrawIconEx(mem, icon_x, icon_y, a.logo, a.logo_size, a.logo_size, 0, std::ptr::null_mut(), DI_NORMAL);
+            }
+            let mut wr = RECT {
+                left: icon_x + a.logo_size + gap,
+                top: 0,
+                right: icon_x + px(160, a.dpi),
+                bottom: a.layout.header.bottom,
+            };
+            text(mem, word, &mut wr, p.text, a.fonts.logo, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            if a.mode == WorkspaceMode::Tasks {
+                let g = rect(a.layout.group);
+                fill(mem, &g, p.surface);
+                frame(mem, &g, p.border, 1);
+                let mut lr = rect(a.layout.label);
+                text(
+                    mem,
+                    strings::SELECT_TASK,
+                    &mut lr,
+                    p.text_muted,
+                    a.fonts.label,
+                    DT_LEFT | DT_VCENTER | DT_SINGLELINE,
+                );
+            } else if let Some(r) = a.layout.activity {
+                let panel = rect(r);
+                fill(mem, &panel, p.surface);
+                frame(mem, &panel, p.border, 1);
+                let mut title =
+                    RECT { left: r.left + px(10, a.dpi), top: r.top, right: r.right, bottom: r.top + px(26, a.dpi) };
+                text(mem, "Recent activity", &mut title, p.text, a.fonts.button, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            }
+
+            if a.mode == WorkspaceMode::Tasks {
+                if let Some(r) = a.layout.activity {
+                    let panel = rect(r);
+                    fill(mem, &panel, p.surface);
+                    frame(mem, &panel, p.border, 1);
+                    let mut title = RECT {
+                        left: r.left + px(10, a.dpi),
+                        top: r.top,
+                        right: r.right,
+                        bottom: r.top + px(26, a.dpi),
+                    };
+                    text(
+                        mem,
+                        "Recent activity",
+                        &mut title,
+                        p.text,
+                        a.fonts.button,
+                        DT_LEFT | DT_VCENTER | DT_SINGLELINE,
+                    );
+                }
+            }
+
+            if let Some(r) = a.layout.details {
+                let panel = rect(r);
+                fill(mem, &panel, p.elevated);
+                frame(mem, &panel, p.border_strong, 1);
+                let idx = a.selected_task.or(a.focus_task).unwrap_or(0).min(task_list().len().saturating_sub(1));
+                if let Some(task) = task_list().get(idx) {
+                    let mut eyebrow = RECT {
+                        left: r.left + px(12, a.dpi),
+                        top: r.top + px(12, a.dpi),
+                        right: r.right - px(12, a.dpi),
+                        bottom: r.top + px(34, a.dpi),
+                    };
+                    text(mem, "TOOL DETAILS", &mut eyebrow, p.text_muted, a.fonts.label, DT_LEFT | DT_SINGLELINE);
+                    let mut title = RECT {
+                        left: r.left + px(12, a.dpi),
+                        top: r.top + px(38, a.dpi),
+                        right: r.right - px(12, a.dpi),
+                        bottom: r.top + px(68, a.dpi),
+                    };
+                    text(mem, strings::task_title(task.id), &mut title, p.text, a.fonts.button, DT_LEFT | DT_WORDBREAK);
+                    let mut description = RECT {
+                        left: r.left + px(12, a.dpi),
+                        top: r.top + px(78, a.dpi),
+                        right: r.right - px(12, a.dpi),
+                        bottom: r.bottom - px(68, a.dpi),
+                    };
+                    text(
+                        mem,
+                        strings::task_tip(task.id),
+                        &mut description,
+                        p.text_secondary,
+                        a.fonts.label,
+                        DT_LEFT | DT_WORDBREAK,
+                    );
+                    if !task.variants.is_empty() {
+                        let variants = task
+                            .variants
+                            .iter()
+                            .map(|v| strings::variant_label(v.id).trim_end_matches('…'))
+                            .collect::<Vec<_>>()
+                            .join(" · ");
+                        let mut variants_rect = RECT {
+                            left: r.left + px(12, a.dpi),
+                            top: r.bottom - px(92, a.dpi),
+                            right: r.right - px(12, a.dpi),
+                            bottom: r.bottom - px(64, a.dpi),
+                        };
+                        text(
+                            mem,
+                            &format!("Other actions: {variants}"),
+                            &mut variants_rect,
+                            p.text_secondary,
+                            a.fonts.label,
+                            DT_LEFT | DT_WORDBREAK,
+                        );
+                    }
+                    let safety = if task.admin {
+                        "Requires administrator rights."
+                    } else {
+                        "Runs without administrator rights."
+                    };
+                    let mut safety_rect = RECT {
+                        left: r.left + px(12, a.dpi),
+                        top: r.bottom - px(62, a.dpi),
+                        right: r.right - px(12, a.dpi),
+                        bottom: r.bottom - px(36, a.dpi),
+                    };
+                    text(
+                        mem,
+                        safety,
+                        &mut safety_rect,
+                        if task.admin { p.warning } else { p.text_muted },
+                        a.fonts.label,
+                        DT_LEFT | DT_WORDBREAK,
+                    );
+                    let mut hint = RECT {
+                        left: r.left + px(12, a.dpi),
+                        top: r.bottom - px(30, a.dpi),
+                        right: r.right - px(12, a.dpi),
+                        bottom: r.bottom - px(8, a.dpi),
+                    };
+                    text(
+                        mem,
+                        "Press Esc to close Details.",
+                        &mut hint,
+                        p.text_muted,
+                        a.fonts.label,
+                        DT_LEFT | DT_SINGLELINE,
+                    );
+                }
+            }
+
             if let Some(t) = a.focus_task {
                 let r = rect(ring_rect(a, t));
                 frame(mem, &r, p.accent, px(2, a.dpi));
             }
-            // Footer: logo + wordmark, centered.
             let f = a.layout.footer;
-            let word = "IsoFoundry";
-            let mut tr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-            let ww: Vec<u16> = word.encode_utf16().collect();
-            let old = SelectObject(mem, a.fonts.logo);
-            DrawTextW(mem, ww.as_ptr(), ww.len() as i32, &mut tr, DT_CALCRECT | DT_SINGLELINE);
-            SelectObject(mem, old);
-            let gap = px(14, a.dpi);
-            let total = a.logo_size + gap + tr.right;
-            let x = f.left + (f.width() - total) / 2;
-            let cy = f.top + f.height() / 2;
-            if !a.logo.is_null() {
-                DrawIconEx(
-                    mem,
-                    x,
-                    cy - a.logo_size / 2,
-                    a.logo,
-                    a.logo_size,
-                    a.logo_size,
-                    0,
-                    std::ptr::null_mut(),
-                    DI_NORMAL,
-                );
-            }
-            let mut wr =
-                RECT { left: x + a.logo_size + gap, top: cy - tr.bottom / 2, right: x + total, bottom: cy + tr.bottom };
-            text(mem, word, &mut wr, p.text, a.fonts.logo, DT_LEFT | DT_SINGLELINE);
+            let footer = rect(f);
+            fill(mem, &footer, p.surface);
+            frame(mem, &footer, p.border, 1);
+            let mut status = RECT {
+                left: px(layout::MARGIN_X, a.dpi),
+                top: f.top,
+                right: f.right - px(layout::MARGIN_X, a.dpi),
+                bottom: f.bottom,
+            };
+            let status_text = if a.mode == WorkspaceMode::Tasks {
+                format!("Ready · {} tools · Windows 11 x64", task_list().len())
+            } else {
+                format!("Activity · {} recent events", a.activity_lines.len())
+            };
+            text(mem, &status_text, &mut status, p.text_muted, a.fonts.label, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         });
         BitBlt(hdc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
         SelectObject(mem, old_bmp);
@@ -811,13 +1273,20 @@ fn paint(hwnd: HWND) {
     }
 }
 
+fn control_visible(a: &App, c: Control) -> bool {
+    if a.mode != WorkspaceMode::Tasks {
+        return false;
+    }
+    let cell = a.layout.cells[c.task];
+    let r = if c.arrow { cell.arrow.unwrap_or(cell.main) } else { cell.main };
+    !a.layout.details.is_some_and(|d| r.left < d.right && d.left < r.right && r.top < d.bottom && d.top < r.bottom)
+}
+
 fn draw_item(dis: &DRAWITEMSTRUCT) {
     with_app(|a| {
-        let Some(c) = a.controls.iter().find(|c| c.hwnd == dis.hwndItem).copied() else { return };
-        let t = task_list()[c.task];
         let p = a.palette;
         let pressed = dis.itemState & ODS_SELECTED != 0;
-        let hot = a.hot == Some(c.hwnd);
+        let hot = a.hot == Some(dis.hwndItem);
         let bg = if pressed {
             p.btn_pressed
         } else if hot {
@@ -826,28 +1295,61 @@ fn draw_item(dis: &DRAWITEMSTRUCT) {
             p.btn
         };
         let r = dis.rcItem;
+        if let Some(c) = a.header_controls.iter().find(|c| c.hwnd == dis.hwndItem).copied() {
+            let active = match c.action {
+                HeaderAction::Tasks => a.mode == WorkspaceMode::Tasks,
+                HeaderAction::Activity => a.mode == WorkspaceMode::Activity,
+                HeaderAction::Details => a.details_open,
+                HeaderAction::Logs => a.activity_open,
+            };
+            let fill_color = if active { p.accent_subtle } else { bg };
+            let edge = if active || hot || pressed { p.accent } else { p.border };
+            // SAFETY: owner-draw DC and rectangle belong to this header control.
+            unsafe {
+                fill(dis.hDC, &r, p.surface);
+                let brush = CreateSolidBrush(colorref(fill_color) as COLORREF);
+                let pen = CreatePen(PS_SOLID, 1, colorref(edge) as COLORREF);
+                let old_brush = SelectObject(dis.hDC, brush);
+                let old_pen = SelectObject(dis.hDC, pen);
+                let radius = px(4, a.dpi);
+                RoundRect(dis.hDC, r.left, r.top, r.right, r.bottom, radius, radius);
+                SelectObject(dis.hDC, old_brush);
+                SelectObject(dis.hDC, old_pen);
+                DeleteObject(brush);
+                DeleteObject(pen);
+                let label = match c.action {
+                    HeaderAction::Tasks => "Tasks",
+                    HeaderAction::Activity => "Activity",
+                    HeaderAction::Details => "Details",
+                    HeaderAction::Logs => "Logs",
+                };
+                let mut text_rect = r;
+                text(dis.hDC, label, &mut text_rect, p.text, a.fonts.button, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                if dis.itemState & ODS_FOCUS != 0 {
+                    frame(dis.hDC, &r, p.accent, px(2, a.dpi));
+                }
+            }
+            return;
+        }
+        let Some(c) = a.controls.iter().find(|c| c.hwnd == dis.hwndItem).copied() else { return };
+        let t = task_list()[c.task];
         // SAFETY: the DC and rect come from the system for this paint.
         unsafe {
             let dc = dis.hDC;
             fill(dc, &r, p.surface);
             let b = CreateSolidBrush(colorref(bg) as COLORREF);
-            let pen = CreatePen(PS_SOLID, 1, colorref(if p == Palette::DARK { bg } else { p.border }) as COLORREF);
+            let edge = if hot || pressed { p.border_strong } else { p.border };
+            let pen = CreatePen(PS_SOLID, 1, colorref(edge) as COLORREF);
             let ob = SelectObject(dc, b);
             let op = SelectObject(dc, pen);
-            let rad = px(8, a.dpi);
+            let rad = px(4, a.dpi);
             RoundRect(dc, r.left, r.top, r.right, r.bottom, rad, rad);
             SelectObject(dc, ob);
             SelectObject(dc, op);
             DeleteObject(b);
             DeleteObject(pen);
 
-            let fg = if p == Palette::DARK {
-                p.btn_text
-            } else if hot || pressed {
-                p.bg
-            } else {
-                p.btn_text
-            };
+            let fg = if dis.itemState & ODS_DISABLED != 0 { p.text_muted } else { p.btn_text };
             if c.arrow {
                 let cx = (r.left + r.right) / 2;
                 let cy = (r.top + r.bottom) / 2;
@@ -940,6 +1442,11 @@ unsafe extern "system" fn button_subclass(
                 let task = a.controls.iter().find(|c| c.hwnd == h).map(|c| c.task);
                 let before = a.focus_task.map(|t| ring_rect(a, t));
                 a.focus_task = if msg == WM_SETFOCUS { task } else { None };
+                if msg == WM_SETFOCUS {
+                    if let Some(task) = task {
+                        a.selected_task = Some(task);
+                    }
+                }
                 let after = a.focus_task.map(|t| ring_rect(a, t));
                 (a.hwnd, before, after)
             });
@@ -1281,7 +1788,7 @@ fn text_window(owner: HWND, title: &str, body: &str) {
         if w.is_null() {
             return;
         }
-        let dark: i32 = 1;
+        let dark = i32::from(palette().dark_theme);
         DwmSetWindowAttribute(w, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
         let edit_cls = wide("EDIT");
         let b = wide(body);
@@ -1334,12 +1841,18 @@ unsafe extern "system" fn text_wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPA
         }
         WM_CTLCOLORSTATIC | WM_CTLCOLOREDIT => {
             let p = with_app(|a| a.palette).unwrap_or(Palette::DARK);
+            let bg = if msg == WM_CTLCOLOREDIT { p.sunken } else { p.surface };
             let dc = wp as HDC;
             SetTextColor(dc, colorref(p.text) as COLORREF);
-            SetBkColor(dc, colorref(p.surface) as COLORREF);
-            // A stock-less brush cached per process: one brush, never freed (≤ 1 object).
-            static BRUSH: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-            *BRUSH.get_or_init(|| CreateSolidBrush(colorref(theme::SURFACE) as COLORREF) as usize) as LRESULT
+            SetBkColor(dc, colorref(bg) as COLORREF);
+            super::taskwin::color_brush(bg) as LRESULT
+        }
+        WM_SETTINGCHANGE | WM_SYSCOLORCHANGE | WM_THEMECHANGED => {
+            let p = refresh_palette();
+            let dark = i32::from(p.dark_theme);
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
+            RedrawWindow(hwnd, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+            DefWindowProcW(hwnd, msg, wp, lp)
         }
         WM_SETFOCUS => {
             SetFocus(GetDlgItem(hwnd, 1));
@@ -1360,6 +1873,13 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             draw_item(&*(lp as *const DRAWITEMSTRUCT));
             1
         }
+        WM_CTLCOLOREDIT => {
+            let p = with_app(|a| a.palette).unwrap_or(Palette::DARK);
+            let dc = wp as HDC;
+            SetTextColor(dc, colorref(p.text) as COLORREF);
+            SetBkColor(dc, colorref(p.sunken) as COLORREF);
+            super::taskwin::color_brush(p.sunken) as LRESULT
+        }
         WM_SIZE => {
             let (w, h) = (loword(lp as usize) as i32, hiword(lp as usize) as i32);
             with_app(|a| relayout(a, w, h));
@@ -1368,7 +1888,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         WM_GETMINMAXINFO => {
             let mmi = &mut *(lp as *mut MINMAXINFO);
             let dpi = GetDpiForWindow(hwnd).max(96);
-            let (w, h) = layout::min_client(dpi);
+            let has_drawer = with_app(|a| a.activity_open && a.mode == WorkspaceMode::Tasks).unwrap_or(false);
+            let (w, h) =
+                if has_drawer { layout::min_client_with_activity_drawer(dpi) } else { layout::min_client(dpi) };
             let mut r = RECT { left: 0, top: 0, right: w, bottom: h };
             AdjustWindowRectExForDpi(&mut r, WS_OVERLAPPEDWINDOW, 1, WS_EX_CONTROLPARENT, dpi);
             mmi.ptMinTrackSize = POINT { x: r.right - r.left, y: r.bottom - r.top };
@@ -1380,6 +1902,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                 a.dpi = dpi;
                 a.fonts = Fonts::new(dpi);
                 a.logo_size = 0;
+                if !a.activity_edit.is_null() {
+                    unsafe { SendMessageW(a.activity_edit, WM_SETFONT, a.fonts.mono as usize, 1) };
+                }
             });
             let r = &*(lp as *const RECT);
             SetWindowPos(
@@ -1394,13 +1919,18 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             0
         }
         WM_SETTINGCHANGE | WM_SYSCOLORCHANGE | WM_THEMECHANGED => {
-            let p = current_palette();
-            with_app(|a| a.palette = p);
+            let p = refresh_palette();
+            let dark = i32::from(p.dark_theme);
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
+            with_app(|a| super::taskwin::dark_theme(a.activity_edit));
             RedrawWindow(hwnd, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_ALLCHILDREN);
             DefWindowProcW(hwnd, msg, wp, lp)
         }
         WM_COMMAND => {
-            on_command(hwnd, loword(wp));
+            let id = loword(wp);
+            if !handle_header_command(hwnd, id) {
+                on_command(hwnd, id);
+            }
             0
         }
         m if m == super::finish::WM_FINISH_TOAST => {

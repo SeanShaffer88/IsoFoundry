@@ -1,41 +1,59 @@
 # Design tokens
 
-Base: product-family black/red (InstallScope/Expunge). Deviations recorded at the bottom.
+IsoFoundry follows [FluentGruv](https://github.com/SeanShaffer88/FluentGruv), version 1.3.0. Its `tokens.json` is authoritative; `crates/isofoundry/src/theme.rs` mirrors the runtime palettes and tests their contrast.
 
-## Color
-| Token | Value | Use | Contrast (measured) |
-|---|---|---|---|
-| `bg` | `#0E0E10` | window background | — |
-| `surface` | `#17171A` | group box / panels | white text 17.89:1 |
-| `surface-2` | `#1F1F23` | inputs, list rows | — |
-| `border` | `#2E2E34` | decorative dividers only | 1.33:1 (non-essential) |
-| `border-control` | `#7A7A84` | input / checkbox borders | 3.87:1 on surface-2, 4.21:1 on surface |
-| `text` | `#FFFFFF` | primary text | — |
-| `text-muted` | `#B8B8C0` | secondary text | 9.08:1 on surface |
-| `btn` | `#6B0700` | task buttons, primary buttons | white 12.68:1 |
-| `btn-hover` | `#861008` | hover | white 10.04:1 |
-| `btn-pressed` | `#540500` | pressed | — |
-| `accent` | `#E0313A` | focus ring, progress, selection, links (never body text) | 3.98:1 on surface (UI-component ≥ 3:1 ✔) |
-| `ok` | `#3FB950` | success icon + text label | 7.04:1 |
-| `warn` | `#D29922` | warning icon + text label | 7.09:1 |
-| `error` | `#FF6B6B` | error icon + text label | 6.45:1 |
-| `shield` | system UAC shield icon | elevation marker | — |
+## Theme
 
-Focus ring: 2 px `accent` drawn **outside** a 2 px `bg` gap so it sits on `surface` (3.98:1), not on `btn` (2.82:1, fails).
+- Dark is the default: Gruvbox charcoal surfaces, warm text and red active/focus accents.
+- Light mode uses the complete FluentGruv light palette. Read `AppsUseLightTheme` from Windows; never mix light and dark tokens.
+- Windows high-contrast mode overrides both palettes with system colors.
+- When Windows changes theme, redraw the main window, dialogs and child controls.
 
-## Type
-- Segoe UI Variable (fallback Segoe UI). Sizes: 12 caption, 14 body, 14 semibold buttons, 18 dialog title, 28 wordmark.
-- Follows Windows text-scaling setting.
+## Dark palette
 
-## Spacing / shape
-- 4 px grid. Button height 32, grid gap 12 × 10, group padding 16.
-- Radius 4 (buttons, inputs), 6 (group box), 8 (dialogs).
+| Token | Value |
+|---|---|
+| `bg.canvas` | `#1D2021` |
+| `bg.surface` | `#282828` |
+| `bg.elevated` | `#32302F` |
+| `bg.sunken` | `#171819` |
+| `border.subtle` | `#3C3836` |
+| `border.strong` | `#504945` |
+| `fg.primary` | `#EBDBB2` |
+| `fg.secondary` | `#D5C4A1` |
+| `fg.muted` | `#A89984` |
+| `accent.primary` | `#FB4934` |
+| `accent.secondary` | `#CC241D` |
+| `accent.subtle` | `#3B1D1B` |
+| `status.success` | `#B8BB26` |
+| `status.warning` | `#FABD2F` |
+| `status.danger` | `#FB4934` |
 
-## Motion
-- 120 ms ease-out hover/press; progress bar animates only while active; all motion off when Windows "Animation effects" is off.
+## Light palette
 
-## High contrast
-- When a Windows contrast theme is active, all tokens map to system colors (`ButtonFace`, `ButtonText`, `Highlight`, …).
+| Token | Value |
+|---|---|
+| `bg.canvas` | `#F9F5D7` |
+| `bg.surface` | `#FBF1C7` |
+| `bg.elevated` | `#EBDBB2` |
+| `bg.sunken` | `#F2E5BC` |
+| `border.subtle` | `#D5C4A1` |
+| `border.strong` | `#BDAE93` |
+| `fg.primary` | `#282828` |
+| `fg.secondary` | `#3C3836` |
+| `fg.muted` | `#665C54` |
+| `accent.primary` | `#CC241D` |
+| `accent.secondary` | `#9D0006` |
+| `accent.subtle` | `#F4D2AE` |
+| `status.success` | `#79740E` |
+| `status.warning` | `#AF3A03` |
+| `status.danger` | `#CC241D` |
 
-## Deviations
-- `accent` `#E0313A` added (Expunge uses only `#6B0700`): needed for a visible focus ring.
+## Geometry and type
+
+- Use 4px/8px spacing, 4px standard corners, 2px compact corners and 0px full-bleed edges.
+- Use Segoe UI for interface text and Consolas/Cascadia Mono for paths, logs and numbers.
+- Scale all dimensions and fonts for per-monitor DPI. Use a 2px primary-accent focus ring.
+- Keep body/small text at 4.5:1 or better; active/focus/status marks need 3:1.
+
+See [FluentGruv SPEC.md](https://github.com/SeanShaffer88/FluentGruv/blob/main/SPEC.md) for layout, drawers, radial progress, keyboard and viewport rules.

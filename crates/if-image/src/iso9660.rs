@@ -66,7 +66,7 @@ fn parse_vd(vd: &[u8], joliet: bool) -> Result<Iso9660> {
 }
 
 fn ucs2(b: &[u8]) -> String {
-    let u: Vec<u16> = b.chunks_exact(2).map(|c| u16::from_be_bytes([c[0], c[1]])).collect();
+    let u: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| u16::from_be_bytes([c[0], c[1]])).collect();
     String::from_utf16_lossy(&u).trim_end_matches('\0').to_string()
 }
 
@@ -132,7 +132,7 @@ fn parse_record(r: &[u8], joliet: bool) -> Option<Entry> {
 /// as found on most Linux images that have no Joliet tree.
 fn rock_ridge_name(r: &[u8], name_len: usize) -> Option<String> {
     let len = r[0] as usize;
-    let mut p = 33 + name_len + usize::from(name_len % 2 == 0);
+    let mut p = 33 + name_len + usize::from(name_len.is_multiple_of(2));
     let mut name = Vec::new();
     let mut found = false;
     while p + 4 <= len {

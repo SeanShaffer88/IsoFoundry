@@ -101,3 +101,15 @@ Format: `D-NNN — decision — why — status`. Newest at the bottom. Changing 
 - D-018 records the intended audio format scope, not the shipped
   encoders. Opus and Vorbis encoding are not implemented; WAV, FLAC,
   MP3, and AAC/M4A are the available encoders.
+
+## D-055 — Supported platform and compiler floor (2026-11-23)
+
+Supersedes the earlier Windows 10/ARM64 release targets in D-044 and D-047: Windows 11 x64 is the only supported release target. Rust 1.88 is the minimum compiler version, matching the locked dependency set. CI, installer checks, packaging, and published requirements must agree.
+
+## D-056 — Physical USB writes stay disabled (2026-11-23)
+
+Until the helper independently detects and blocks a separate EFI/System Reserved boot disk, physical-disk writes stay disabled. Physical-disk reads and disk-image-file test writes remain available. Use raw image files for write tests; attached physical VHDX write tests are disabled too.
+
+## D-057 — Adopt FluentGruv workspace design (2026-11-23)
+
+Use FluentGruv's exact dark/light tokens, Windows high-contrast system colors, 4px controls and focus rings. The main workspace has Tasks and Activity modes, selected-tool details, a scrollable activity area, and collapsible task logs with radial progress. Save workspace and drawer state locally. Keep the main task grid scroll-free; when a bottom log drawer cannot fit, open the full Activity mode instead. Verify native rendering on Windows 11 x64 before release.

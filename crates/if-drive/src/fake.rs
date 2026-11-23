@@ -450,7 +450,7 @@ impl OpticalDrive for FakeDrive {
             return err("no audio tracks to burn");
         }
         for t in tracks {
-            if t.pcm.len() % 2352 != 0 {
+            if !t.pcm.len().is_multiple_of(2352) {
                 return err(format!("track '{}' is not a whole number of CD frames", t.title));
             }
         }

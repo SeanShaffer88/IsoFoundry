@@ -45,12 +45,12 @@ impl Tags {
 }
 
 fn get(tag: &Tag, key: ItemKey) -> String {
-    tag.get_string(key).unwrap_or("").to_string()
+    tag.get_string(&key).unwrap_or("").to_string()
 }
 
 fn get_gain(tag: &Tag, key: ItemKey) -> Option<f32> {
     // Stored as e.g. "-7.32 dB" or "-7.32"; peaks as "0.987654".
-    let s = tag.get_string(key)?;
+    let s = tag.get_string(&key)?;
     s.trim().trim_end_matches("dB").trim().parse::<f32>().ok()
 }
 

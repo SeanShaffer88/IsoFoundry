@@ -12,7 +12,7 @@ use std::ffi::c_void;
 use std::path::Path;
 use usbwriter::device::{assess_target, BlockDevice, Bus, DiskInfo};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
+    CloseHandle, GetLastError, ERROR_NO_MORE_FILES, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     BusTypeFileBackedVirtual, BusTypeNvme, BusTypeSata, BusTypeUsb, BusTypeVirtual, CreateFileW, FindFirstVolumeW,
@@ -79,23 +79,29 @@ fn ioctl(handle: HANDLE, code: u32, input: &[u8], output: &mut [u8]) -> Result<u
 /// Disk numbers hosting the volume at `path` (a drive-letter path like
 /// `\\.\C:` or a volume GUID path without trailing backslash).
 fn volume_disks(path: &str) -> Vec<u32> {
+    volume_disks_checked(path).unwrap_or_default()
+}
+
+/// Resolves a volume to its backing physical disks. Destructive paths use
+/// this checked form: an unknown volume must never be treated as unrelated.
+fn volume_disks_checked(path: &str) -> Result<Vec<u32>, String> {
     let Some(h) = open_handle(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE) else {
-        return Vec::new();
+        return Err(win_err("cannot inspect a volume"));
     };
     let mut buf = vec![0u8; 4096];
-    if ioctl(h.0, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, &[], &mut buf).is_err() {
-        return Vec::new();
-    }
+    let returned = ioctl(h.0, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, &[], &mut buf)? as usize;
     // SAFETY: the buffer holds a VOLUME_DISK_EXTENTS from the driver.
     let header = unsafe { &*(buf.as_ptr() as *const VOLUME_DISK_EXTENTS) };
     let n = header.NumberOfDiskExtents as usize;
+    let offset = std::mem::size_of::<u32>() * 2;
+    let extent_size = std::mem::size_of::<windows_sys::Win32::System::Ioctl::DISK_EXTENT>();
+    if n > 64 || returned < offset || n > (returned - offset) / extent_size {
+        return Err(format!("volume {path} returned an incomplete disk-extent list"));
+    }
     let extents = unsafe {
-        std::slice::from_raw_parts(
-            buf.as_ptr().add(std::mem::size_of::<u32>() * 2) as *const windows_sys::Win32::System::Ioctl::DISK_EXTENT,
-            n.min(64),
-        )
+        std::slice::from_raw_parts(buf.as_ptr().add(offset) as *const windows_sys::Win32::System::Ioctl::DISK_EXTENT, n)
     };
-    extents.iter().map(|e| e.DiskNumber).collect()
+    Ok(extents.iter().map(|e| e.DiskNumber).collect())
 }
 
 fn disk_size(handle: HANDLE) -> u64 {
@@ -114,6 +120,41 @@ fn c_string_at(buf: &[u8], offset: u32) -> String {
     let bytes = &buf[offset as usize..];
     let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..end]).trim().to_string()
+}
+
+fn storage_details(handle: HANDLE) -> (String, String, Bus, bool) {
+    let query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceProperty,
+        QueryType: PropertyStandardQuery,
+        AdditionalParameters: [0],
+    };
+    let qbytes = unsafe {
+        std::slice::from_raw_parts(
+            &query as *const STORAGE_PROPERTY_QUERY as *const u8,
+            std::mem::size_of::<STORAGE_PROPERTY_QUERY>(),
+        )
+    };
+    let mut dbuf = vec![0u8; 1024];
+    if ioctl(handle, IOCTL_STORAGE_QUERY_PROPERTY, qbytes, &mut dbuf).is_err() {
+        return (String::new(), String::new(), Bus::Other, false);
+    }
+    let d = unsafe { &*(dbuf.as_ptr() as *const STORAGE_DEVICE_DESCRIPTOR) };
+    let vendor = c_string_at(&dbuf, d.VendorIdOffset);
+    let product = c_string_at(&dbuf, d.ProductIdOffset);
+    let model = [vendor, product].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join(" ");
+    let device_id = c_string_at(&dbuf, d.SerialNumberOffset);
+    let bus = if d.BusType == BusTypeUsb {
+        Bus::Usb
+    } else if d.BusType == BusTypeNvme {
+        Bus::Nvme
+    } else if d.BusType == BusTypeSata {
+        Bus::Sata
+    } else if d.BusType == BusTypeVirtual || d.BusType == BusTypeFileBackedVirtual {
+        Bus::Virtual
+    } else {
+        Bus::Other
+    };
+    (model, device_id, bus, d.RemovableMedia != 0)
 }
 
 /// The set of disk numbers Windows itself lives on (the volume holding
@@ -162,12 +203,21 @@ fn pagefile_disks() -> Vec<u32> {
     out
 }
 
-/// Volume labels per disk number, from every drive letter.
+/// Volume labels per disk, including unnamed volumes and volumes without a
+/// drive letter, so destructive confirmation does not miss hidden volumes.
 fn labels_by_disk() -> std::collections::HashMap<u32, Vec<String>> {
     let mut map: std::collections::HashMap<u32, Vec<String>> = std::collections::HashMap::new();
-    for c in b'A'..=b'Z' {
-        let letter = format!("{}:\\", c as char);
-        let root = wide(&letter);
+    let mut name_buf = [0u16; 1024];
+    // This is display information only. The destructive lock path below
+    // fails closed if volume enumeration or mapping is incomplete.
+    let find = unsafe { FindFirstVolumeW(name_buf.as_mut_ptr(), name_buf.len() as u32) };
+    if find == INVALID_HANDLE_VALUE {
+        return map;
+    }
+    loop {
+        let name = String::from_utf16_lossy(&name_buf[..name_buf.iter().position(|u| *u == 0).unwrap_or(0)]);
+        let open_path = name.trim_end_matches('\\').to_string();
+        let root = wide(&name);
         let mut label = [0u16; 261];
         // SAFETY: buffers are valid for the call.
         let ok = unsafe {
@@ -182,19 +232,27 @@ fn labels_by_disk() -> std::collections::HashMap<u32, Vec<String>> {
                 0,
             )
         };
-        if ok == 0 {
-            continue;
-        }
-        let text: String =
-            label.iter().take_while(|u| **u != 0).map(|u| char::from_u32(*u as u32).unwrap_or(' ')).collect();
-        let text = text.trim().to_string();
-        if text.is_empty() {
-            continue;
-        }
-        for disk in volume_disks(&format!("\\\\.\\{}:", c as char)) {
+        let text = if ok == 0 {
+            "(unnamed volume)".to_string()
+        } else {
+            let text: String =
+                label.iter().take_while(|u| **u != 0).map(|u| char::from_u32(*u as u32).unwrap_or(' ')).collect();
+            let text = text.trim().to_string();
+            if text.is_empty() {
+                "(unnamed volume)".to_string()
+            } else {
+                text
+            }
+        };
+        for disk in volume_disks(&open_path) {
             map.entry(disk).or_default().push(text.clone());
         }
+        name_buf = [0u16; 1024];
+        if unsafe { FindNextVolumeW(find, name_buf.as_mut_ptr(), name_buf.len() as u32) } == 0 {
+            break;
+        }
     }
+    unsafe { FindVolumeClose(find) };
     map
 }
 
@@ -214,42 +272,11 @@ pub fn enumerate() -> Vec<DiskInfo> {
         if size == 0 {
             continue;
         }
-        // Storage descriptor: model + bus + removable.
-        let query = STORAGE_PROPERTY_QUERY {
-            PropertyId: StorageDeviceProperty,
-            QueryType: PropertyStandardQuery,
-            AdditionalParameters: [0],
-        };
-        let qbytes = unsafe {
-            std::slice::from_raw_parts(
-                &query as *const STORAGE_PROPERTY_QUERY as *const u8,
-                std::mem::size_of::<STORAGE_PROPERTY_QUERY>(),
-            )
-        };
-        let mut dbuf = vec![0u8; 1024];
-        let (model, bus, removable) = if ioctl(h.0, IOCTL_STORAGE_QUERY_PROPERTY, qbytes, &mut dbuf).is_ok() {
-            let d = unsafe { &*(dbuf.as_ptr() as *const STORAGE_DEVICE_DESCRIPTOR) };
-            let vendor = c_string_at(&dbuf, d.VendorIdOffset);
-            let product = c_string_at(&dbuf, d.ProductIdOffset);
-            let model = [vendor, product].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join(" ");
-            let bus = if d.BusType == BusTypeUsb {
-                Bus::Usb
-            } else if d.BusType == BusTypeNvme {
-                Bus::Nvme
-            } else if d.BusType == BusTypeSata {
-                Bus::Sata
-            } else if d.BusType == BusTypeVirtual || d.BusType == BusTypeFileBackedVirtual {
-                Bus::Virtual
-            } else {
-                Bus::Other
-            };
-            (model, bus, d.RemovableMedia != 0)
-        } else {
-            (String::new(), Bus::Other, false)
-        };
+        let (model, device_id, bus, removable) = storage_details(h.0);
         out.push(DiskInfo {
             number: n,
             model: if model.is_empty() { format!("Disk {n}") } else { model },
+            device_id,
             size_bytes: size,
             bus,
             removable,
@@ -329,7 +356,7 @@ impl BlockDevice for PhysicalDevice {
     }
 
     fn write_at(&mut self, off: u64, buf: &[u8]) -> Result<(), usbwriter::Error> {
-        if off % SECTOR == 0 && buf.len() as u64 % SECTOR == 0 {
+        if off.is_multiple_of(SECTOR) && (buf.len() as u64).is_multiple_of(SECTOR) {
             return self.write_sectors(off, buf).map_err(usbwriter::Error);
         }
         // Read-modify-write the covering sectors.
@@ -353,37 +380,56 @@ impl BlockDevice for PhysicalDevice {
 }
 
 /// Locks and dismounts every volume living on `disk`. Returns the open
-/// volume handles — dropping them releases the locks. Failures to lock
-/// are fatal: writing to a mounted disk is how data gets lost.
+/// volume handles — dropping them releases the locks. Any enumeration,
+/// mapping, open, lock, or dismount failure aborts before writing.
 fn lock_volumes(disk: u32) -> Result<Vec<Owned>, String> {
     let mut held = Vec::new();
     let mut name_buf = [0u16; 1024];
     // SAFETY: buffer sized for volume names; handles closed per the API.
     let find = unsafe { FindFirstVolumeW(name_buf.as_mut_ptr(), name_buf.len() as u32) };
     if find == INVALID_HANDLE_VALUE {
-        return Ok(held);
+        return Err(win_err("cannot enumerate volumes; refusing to write"));
     }
-    loop {
-        let name = String::from_utf16_lossy(&name_buf[..name_buf.iter().position(|u| *u == 0).unwrap_or(0)]);
-        let open_path = name.trim_end_matches('\\').to_string();
-        if volume_disks(&open_path).contains(&disk) {
-            if let Some(h) = open_handle(&open_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE) {
+    let result = (|| {
+        loop {
+            let name = String::from_utf16_lossy(&name_buf[..name_buf.iter().position(|u| *u == 0).unwrap_or(0)]);
+            let open_path = name.trim_end_matches('\\').to_string();
+            if volume_disks_checked(&open_path)?.contains(&disk) {
+                let h = open_handle(&open_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE)
+                    .ok_or_else(|| win_err(&format!("cannot open a volume on disk {disk}; refusing to write")))?;
                 ioctl(h.0, FSCTL_LOCK_VOLUME, &[], &mut [])
                     .map_err(|e| format!("cannot lock a volume on disk {disk}: {e}"))?;
                 ioctl(h.0, FSCTL_DISMOUNT_VOLUME, &[], &mut [])
                     .map_err(|e| format!("cannot dismount a volume on disk {disk}: {e}"))?;
                 held.push(h);
             }
+            name_buf = [0u16; 1024];
+            if unsafe { FindNextVolumeW(find, name_buf.as_mut_ptr(), name_buf.len() as u32) } == 0 {
+                let error = unsafe { GetLastError() };
+                if error != ERROR_NO_MORE_FILES {
+                    return Err(format!("volume enumeration failed (Windows error {error}); refusing to write"));
+                }
+                break;
+            }
         }
-        name_buf = [0u16; 1024];
-        // SAFETY: find handle is valid until FindVolumeClose.
-        if unsafe { FindNextVolumeW(find, name_buf.as_mut_ptr(), name_buf.len() as u32) } == 0 {
-            break;
-        }
-    }
+        Ok(held)
+    })();
     // SAFETY: find handle from FindFirstVolumeW.
     unsafe { FindVolumeClose(find) };
-    Ok(held)
+    result
+}
+
+fn check_expected_disk(job: &UsbJob, current: &DiskInfo) -> Result<(), String> {
+    if current.model != job.expected_model
+        || current.size_bytes != job.expected_size_bytes
+        || current.device_id != job.expected_device_id
+    {
+        return Err(format!(
+            "disk {} changed since it was selected; refresh the disk list and confirm the new target",
+            job.disk_number
+        ));
+    }
+    Ok(())
 }
 
 /// Finds the volume GUID path (`\\?\Volume{...}\`) for the partition at
@@ -469,19 +515,36 @@ fn format_ntfs(volume_path: &str, label: &str) -> Result<(), String> {
 
 /// Runs one USB job against a physical disk.
 pub fn run_job(job: &UsbJob, progress: &Progress) -> Result<(usize, u64, Vec<String>), String> {
+    if if_core::ipc::is_physical_usb_write(&job.kind) {
+        return Err(if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED.to_string());
+    }
     let disks = enumerate();
     let info = disks
         .iter()
         .find(|d| d.number == job.disk_number)
         .ok_or_else(|| format!("disk {} is no longer present", job.disk_number))?
         .clone();
+    check_expected_disk(job, &info)?;
     assess_target(&info, false, false).map_err(|e| e.0)?;
-    // Re-check immediately before the destructive step against a fresh
-    // enumeration (the list the user picked from may be stale).
+    // Lock all mounted volumes, then confirm the target fingerprint again
+    // before opening the raw physical-disk handle.
     let _held_locks = lock_volumes(job.disk_number)?;
+    let current = enumerate()
+        .into_iter()
+        .find(|d| d.number == job.disk_number)
+        .ok_or_else(|| format!("disk {} disappeared before the job started", job.disk_number))?;
+    check_expected_disk(job, &current)?;
+    assess_target(&current, false, false).map_err(|e| e.0)?;
     let handle = open_handle(&format!("\\\\.\\PhysicalDrive{}", job.disk_number), GENERIC_READ | GENERIC_WRITE, 0)
         .ok_or_else(|| win_err("cannot open the disk for writing"))?;
     let size = disk_size(handle.0);
+    let (mut model, device_id, _, _) = storage_details(handle.0);
+    if model.is_empty() {
+        model = format!("Disk {}", job.disk_number);
+    }
+    if size != job.expected_size_bytes || model != job.expected_model || device_id != job.expected_device_id {
+        return Err(format!("disk {} changed before it could be opened; refusing to write", job.disk_number));
+    }
     let mut dev = PhysicalDevice { handle, size };
     let cancel = CancelToken::new();
     match &job.kind {
@@ -545,6 +608,7 @@ pub fn to_dto(d: &DiskInfo) -> DiskDto {
     DiskDto {
         number: d.number,
         model: d.model.clone(),
+        device_id: d.device_id.clone(),
         size_bytes: d.size_bytes,
         bus: match d.bus {
             Bus::Usb => "usb",
