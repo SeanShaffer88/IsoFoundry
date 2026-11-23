@@ -10,4 +10,4 @@ Legend: ✔ Verified · ◐ Partially verified · ✖ Fails · — not tested.
 ## USB
 | Target | Boot mode | Result | Source |
 |---|---|---|---|
-| VHDX 16 GB (QEMU) | UEFI / BIOS | pending M2 | developer |
+| Raw disk-image file (QEMU) | UEFI / BIOS | pending M2 | developer |

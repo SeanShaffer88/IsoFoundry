@@ -6,20 +6,19 @@
 - Each burn/copy/rip/scan path has at least one success and one failure test.
 - When community drive reports arrive with trace capture enabled (opt-in, redacted), they become regression fixtures.
 
-## 2. USB targets via VHDX (Windows Home compatible)
-Uses the Virtual Disk API (`CreateVirtualDisk`, `AttachVirtualDisk`), which works on Home. No Hyper-V needed.
+## 2. USB image-file targets (no hardware)
+Physical-disk writes are disabled until separate EFI/System Reserved boot-disk protection is verified. This test writes only to a plain disk-image file; it does not attach or select a physical disk.
 
 ```powershell
-# create + attach a 16 GB dynamic VHDX (elevated PowerShell, diskpart is on Home)
-@"
-create vdisk file="$env:USERPROFILE\iftest\usb16.vhdx" maximum=16384 type=expandable
-select vdisk file="$env:USERPROFILE\iftest\usb16.vhdx"
-attach vdisk
-"@ | Set-Content $env:TEMP\mk.txt; diskpart /s $env:TEMP\mk.txt
+# create a 16 GB blank raw disk image
+$path = "$env:USERPROFILE\iftest\usb16.img"
+New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+$file = [System.IO.File]::Open($path, [System.IO.FileMode]::Create)
+$file.SetLength(16GB)
+$file.Dispose()
 
-# then: isofoundry usb write <iso> --disk <N> --dev-allow-vdisk
-# detach before booting:
-"select vdisk file=`"$env:USERPROFILE\iftest\usb16.vhdx`"`ndetach vdisk" | Set-Content $env:TEMP\dt.txt; diskpart /s $env:TEMP\dt.txt
+# use --file so the command cannot target a physical disk
+isofoundry usb write <iso> --file $path --dev-allow-vdisk
 ```
 
 ## 3. Boot test in QEMU (Windows Home)
@@ -27,7 +26,7 @@ attach vdisk
 # UEFI boot (OVMF firmware ships with the QEMU Windows build as edk2-x86_64-code.fd)
 qemu-system-x86_64 -m 4096 -machine q35 `
   -drive if=pflash,format=raw,readonly=on,file="C:\Program Files\qemu\share\edk2-x86_64-code.fd" `
-  -drive file="$env:USERPROFILE\iftest\usb16.vhdx",format=vhdx,if=none,id=usb0 `
+  -drive file="$env:USERPROFILE\iftest\usb16.img",format=raw,if=none,id=usb0 `
   -device qemu-xhci -device usb-storage,drive=usb0,bootindex=0
 # Legacy BIOS boot: drop the pflash line.
 ```
@@ -35,8 +34,9 @@ Pass criteria: firmware finds the boot entry; installer / live OS reaches its fi
 File paths above must be checked against the installed QEMU version.
 
 ## 4. Matrix (filled per release)
-| Area | Win10 22H2 x64 | Win11 x64 | Win11 ARM64 | 100% | 150% | 200% | High contrast | Keyboard-only | Narrator |
-|---|---|---|---|---|---|---|---|---|---|
+| Area | Win11 x64 | 100% | 150% | 200% | High contrast | Keyboard-only | Narrator |
+|---|---|---|---|---|---|---|---|
+| FluentGruv UI | pending | pending | pending | pending | pending | pending | pending |
 
 ## 5. Failure drills (RC)
 Crash mid-burn, power loss (VM), disk full during image build, locked volume, permission denied, corrupt image input, old settings schema, drive removed mid-job.

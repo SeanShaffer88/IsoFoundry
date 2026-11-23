@@ -1,9 +1,7 @@
 //! Create bootable USB window (M2): pick an ISO, pick files mode
 //! (partition + FAT32 + copy the tree) or raw mode (byte-for-byte),
-//! pick a target disk, confirm, write. The typed ERASE confirmation
-//! appears when the target has mounted volumes or is over 64 GB
-//! (ARCHITECTURE.md §7); the safety assessment runs again inside the
-//! helper right before the write.
+//! pick a target disk and write. Physical-disk writes stay disabled until
+//! separate boot-disk protection is verified; disk-image test targets work.
 
 use super::super::gui;
 use super::super::taskwin::*;
@@ -87,10 +85,12 @@ fn refresh_enabled(s: &mut State) {
     }
     let has_image = !get_text(s.image).trim().is_empty();
     let choice = s.pane.selection(s.list);
-    let need_confirm = choice.as_ref().map(confirm_required).unwrap_or(false);
+    let write_blocked = choice.as_ref().map(physical_write_blocked).unwrap_or(false);
+    let need_confirm = !write_blocked && choice.as_ref().map(confirm_required).unwrap_or(false);
     set_enabled(s.confirm, need_confirm);
     let confirmed = !need_confirm || get_text(s.confirm).trim() == "ERASE";
-    set_enabled(s.write, has_image && choice.is_some() && confirmed);
+    set_enabled(s.write, has_image && choice.is_some() && confirmed && !write_blocked);
+    set_text(s.status, if write_blocked { if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED } else { "" });
     let files_mode = is_checked(s.mode_files);
     set_enabled(s.sch_mbr, files_mode);
     set_enabled(s.sch_gpt, files_mode);
@@ -111,6 +111,11 @@ fn start(hwnd: HWND) {
         append_line(s.outlog, "Pick a target disk (Refresh disks, or a disk-image file).");
         return;
     };
+    if physical_write_blocked(&choice) {
+        set_text(s.status, if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED);
+        append_line(s.outlog, if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED);
+        return;
+    }
     let kind = if is_checked(s.mode_files) {
         let scheme = if is_checked(s.sch_gpt) { "gpt" } else { "mbr" }.to_string();
         UsbJobKind::Files { image, scheme, windows_installer: false }
@@ -153,11 +158,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             s.sch_mbr = radio(hwnd, ID_SCH_MBR, 108, 75, 90, "MBR", true);
             s.sch_gpt = radio(hwnd, ID_SCH_GPT, 210, 75, 90, "GPT", false);
             s.verify = checkbox(hwnd, ID_VERIFY, 330, 75, 300, "Verify after write (raw mode)");
-            label(hwnd, 12, 106, 400, "Target (everything on it is erased):");
+            label(hwnd, 12, 106, 640, "Physical writes are disabled; disk-image test files still work:");
             s.list = listbox(hwnd, ID_LIST, 12, 128, 640, 92);
             button(hwnd, ID_REFRESH, 12, 228, 200, "Refresh disks (admin)…");
             button(hwnd, ID_FILE, 220, 228, 210, "Use disk-image file…");
-            label(hwnd, 12, 262, 640, "This target has volumes or is over 64 GB. Type ERASE to allow writing:");
+            label(hwnd, 12, 262, 640, "Physical disk writing is disabled until boot protection is verified.");
             s.confirm = edit(hwnd, ID_CONFIRM, 12, 284, 200, "", false);
             s.write = button(hwnd, ID_WRITE, 428, 282, 104, "Write");
             s.cancel = button(hwnd, ID_CANCEL, 540, 282, 104, "Cancel");
@@ -291,7 +296,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             DefWindowProcW(hwnd, msg, wp, lp)
         }
-        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => ctl_color(wp),
+        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => ctl_color(wp, msg),
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }

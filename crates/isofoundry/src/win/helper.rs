@@ -91,6 +91,7 @@ pub fn disk_from_dto(d: &ipc::DiskDto) -> usbwriter::device::DiskInfo {
     DiskInfo {
         number: d.number,
         model: d.model.clone(),
+        device_id: d.device_id.clone(),
         size_bytes: d.size_bytes,
         bus: match d.bus.as_str() {
             "usb" => Bus::Usb,

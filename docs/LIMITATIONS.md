@@ -10,7 +10,7 @@ Kept current every release. Items move out only with evidence.
 
 ## Hardware verification
 - The developer has no optical drive or USB stick. All disc burning, copying, ripping and scanning features are **Unverified** on real hardware until confirmed through drive reports (`docs/COMPATIBILITY.md`).
-- USB features are tested against attached VHDX disks and QEMU boot only. USB bus enumeration, removable-media flags and real flash write speeds are **Unverified**.
+- USB image writes are tested against disk-image files and QEMU boot. Physical USB writes are disabled until boot-disk protection is verified; USB bus enumeration, removable-media flags and real flash write speeds are **Unverified**.
 - Quality scans (C1/C2, PI/PO) rely on vendor-specific commands and work only on drives known to support them.
 
 ## Planned (2.0)
@@ -35,7 +35,8 @@ Kept current every release. Items move out only with evidence.
 - Releases ship x64 only, as one Setup.exe installer and one portable zip (the MSI, ARM64 and PortableApps.com assets were dropped after 0.1.0).
 
 ## USB (M2)
-- Writing to a physical disk is **Unverified**: the engine is tested end-to-end against disk-image files (the VHDX test route), but the elevated helper's physical-disk path has not yet run on real hardware, and no written stick has been boot-tested yet.
+- Physical USB writes are disabled until a separate EFI/System Reserved boot disk can be reliably blocked. Disk-image test writes remain available; physical-disk reads remain available.
+- The helper does not yet independently identify a separate EFI/System Reserved boot disk. Do not re-enable physical writes until that guard is verified on Windows.
 - The GPT+NTFS layout is formatted by Windows' own formatter through the helper; that call is **Unverified**.
 - Cancelling a job that runs in the helper takes effect when the helper session ends; the file-target route cancels straight away.
 - FAT32 layouts cannot hold an `install.wim`/`install.esd` over the 4 GB FAT32 file limit — the write is refused with a clear message; use the GPT+NTFS layout. Splitting an install image is not supported yet.
@@ -83,8 +84,7 @@ Kept current every release. Items move out only with evidence.
 - A file is decoded fully into memory before encoding; very long recordings need the RAM to match (about 25 MB per minute of stereo audio).
 
 ## Platform
-- Windows 10 22H2 and 11 only. ARM64 builds are produced but **Unverified** until run on ARM64 hardware.
-- LAME MP3 encoding requires `libmp3lame.dll` (not bundled-linked); ARM64 build availability unverified.
+- Windows 11 x64 only. Windows 10 and ARM64 are not supported release targets.
 - APE decoding pending verification.
 - Context-menu verbs appear under "Show more options" on Windows 11.
 - Run commands as `isofoundry …` or `isofoundry.com …` (console twin, D-048). Calling `isofoundry.exe …` explicitly still works but the shell does not wait for it or capture its output.

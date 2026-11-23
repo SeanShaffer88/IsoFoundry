@@ -25,10 +25,17 @@ code inspection, still to be confirmed on a real desktop.
   and results are written as plain sentences in each window's
   status line and in the main log; the log can be filtered by
   severity and copied.
-- **Readable contrast** (Verified on captures). The charcoal/red
-  theme was corrected once already from real captures (0.4.0) so
-  secondary text stays legible; text size follows the Windows
-  setting by default and can be scaled 100–200% in Options.
+- **FluentGruv contrast** (Verified in palette tests). Dark and light
+  tokens match the published FluentGruv ratios; high-contrast mode uses
+  Windows system colors. Runtime captures still need a Windows 11 x64
+  check after this UI pass. Text size follows Windows by default and can
+  be scaled 100–200% in Options.
+- **Workspace navigation and drawers** (Implemented; native runtime check pending).
+  Tasks and Activity have labeled keyboard-accessible tabs; Details and
+  Logs drawers close with Esc, and drawer state is saved locally.
+- **Scroll discipline** (Verified by layout tests). The main task grid
+  never scrolls. Only activity and log text areas have their own
+  vertical scrollbar.
 
 ## Still owed (field checks)
 
@@ -36,6 +43,8 @@ code inspection, still to be confirmed on a real desktop.
   main window and each task window.
 - Keyboard-only completion of one full job in a task window.
 - 200–300% display scaling and Windows high-contrast themes.
+- Visual reflow at 1024×700, 1280×800, 1440×900 and 1920×1080, including
+  an open drawer on each screen size.
 
 These need a real Windows desktop; results will be recorded here
 when they happen.

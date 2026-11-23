@@ -77,16 +77,13 @@ Commands:\n\
                        (--dry-run lists them; --yes deletes)\n\
   help, --help         Show this text\n\
   version, --version   Show the version\n\n\
-USB commands (administrator rights via the helper; disk targets erase the disk):\n\
+USB commands:\n\
   usb list             List physical disks\n\
-  usb write IMAGE --disk N [--mode files|raw] [--scheme mbr|gpt] [--verify]\n\
-                       Make a bootable stick from an ISO (files: copy its tree;\n\
-                       raw: copy the image byte for byte). --yes confirms the erase\n\
   usb read --disk N --out FILE [--bytes N]   Copy a disk back to an image file\n\
-  usb write IMAGE --file STICK.img --dev-allow-vdisk   Same, onto a disk-image file\n\
-  windows-to-usb IMAGE --disk N [--layout mbr|gpt|gpt-ntfs] [--yes]\n\
-                       Windows installer stick (Microsoft's own boot files;\n\
-                       gpt-ntfs for images whose install.wim is over 4 GB)\n\n\
+  usb write IMAGE --file DISK.img --dev-allow-vdisk   Write to a disk-image test file\n\
+  windows-to-usb IMAGE --file DISK.img --dev-allow-vdisk\n\
+                        Windows installer disk-image test (gpt-ntfs for install.wim over 4 GB)\n\
+  Physical-disk writes are disabled until separate boot-disk protection is verified.\n\n\
 Burning commands:\n\
   burn-image IMG [--drive E:|--fake|--all-drives] [--simulate] [--append] [--close] [--speed N] [--yes]\n\
   burn-files DIR [--label NAME]   Burn a folder as a data disc\n\

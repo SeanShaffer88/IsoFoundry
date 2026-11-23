@@ -4,7 +4,7 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 
 | Area | Status | Evidence |
 |---|---|---|
-| Main window, menus, keyboard, focus ring (M0) | Partially verified | wine-9.0 (Ubuntu 9.0~repack-4build3) + Xvfb screenshot, 2026-11-07; not yet on Windows |
+| Main window, menus, keyboard, focus ring (M0) | Partially verified | Wine/Xvfb screenshot (2026-11-07) plus FluentGruv palette/layout tests (2026-11-23); native Windows 11 visual checks pending |
 | CLI (`--version`, `list`, `helper-check`, task stubs) | Partially verified | Wine run and GitHub windows-latest CI smoke test (console twin), 2026-11-07 |
 | Helper pipe handshake | Partially verified | Handshake + ping + version + shutdown passed under Wine and on GitHub windows-latest (runner account, no UAC prompt), 2026-11-07; unit tests for framing and nonce. UAC prompt path untested |
 | Settings, logs, portable paths | Partially verified | Unit tests (Linux) |
@@ -23,7 +23,7 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | Rip and copy (M5) | Partially verified | Engines and the simulated read side under test (damage maps, secure-mode agreement); the SPTI/MMC read path is Unverified on a real drive |
 | Backup and shell integration (M6) | Partially verified | Spanning round trips incl. split files; tampered and incomplete backups fail under drill; WinHTTP, Explorer verbs, disc-insert actions and the announced shutdown are Unverified on Windows |
 | Failure drills (RC) | Verified | `crates/isofoundry/tests/drills.rs`, 13 drills in the workspace suite, 2026-11-08 |
-| Accessibility (RC) | Partially verified | Code-level pass (docs/ACCESSIBILITY.md); task-window keyboard navigation fixed; screen-reader and scaling checks owed from a real desktop |
+| Accessibility (RC) | Partially verified | Code-level pass (docs/ACCESSIBILITY.md); task-window keyboard navigation fixed; FluentGruv focus/drawer changes await Windows screen-reader and scaling checks |
 | Performance budgets (RC) | Partially verified | docs/BENCHMARK.md: image build and checksum measured inside budget; first-window and working-set figures owed from Windows |
 
 ## 2026-11-08 — RC audit (0.9.0)
@@ -53,6 +53,18 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | B-12 | `Fat32Volume::open` computes `total - data_start` and sizes the FAT from `fat_sectors` without checking them against the volume. It only opens volumes this program just wrote, so no untrusted path reaches it today. | Low | Open: harden before any "read an existing stick" feature. |
 | B-13 | The remaining `unwrap`/`expect` calls are on fixed-size slices, static algorithm names, locks and invariants set a line earlier. None found reachable from file input. | — | Reviewed by reading, not by fuzzing; B-9 stays open. |
 
+## 2026-11-23 — Tool safety and support audit
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| B-14 | USB volume discovery treated enumeration and mapping failures as an empty list, allowing a physical write to continue without proving which volumes were on the target. | High | Fixed in code: the helper now aborts on incomplete enumeration, mapping, open, lock or dismount; unnamed and letterless volumes are included in the confirmation list. Windows-target CI still required. |
+| B-15 | Extraction checked archive paths lexically but followed existing symlinks/junctions under the destination, and temp files could be clobbered or left behind after errors. | High | Fixed in code: existing links/reparse points are rejected, output-name collisions are refused, and temporary files use exclusive creation and are cleaned on cancellation/error. |
+| B-16 | The helper checked the Windows-folder disk as the boot disk too; it did not independently identify a separate EFI/System Reserved disk. | High | Mitigated by D-056: all physical-disk writes now fail closed; re-enable only after independent boot-disk detection is verified on Windows. |
+| B-17 | GUI USB jobs depended only on a disk number, so a re-used number could point at a different device; CLI also required `--yes` even for non-destructive USB reads. | Medium | Fixed in code: jobs carry model, size and available storage serial and the helper rechecks them after volume locking; reads no longer require `--yes`. Windows-target CI still required. |
+| B-18 | Support claims and build settings disagreed: Windows 10/ARM64 remained listed, and the Rust 1.82 floor was below the locked dependency set. | Medium | Fixed: Windows 11 x64 only; package/CI/installer settings aligned; Rust floor now matches the lockfile. |
+| B-19 | The dependency advisory audit could not run because `cargo-audit` is unavailable in the environment. | Medium | Open: install/run `cargo audit` in a supported environment; no advisory result is claimed. |
+| B-20 | The native UI did not follow FluentGruv's palette or workspace/drawer pattern. | Medium | Fixed in code: exact dark/light tokens, Windows high-contrast colors, Tasks/Activity modes, details/activity drawers, radial progress and collapsible task logs. Linux palette/layout tests added; Windows CI and visual checks still required. |
+
 ## 2026-11-07 — M0 shell
 
 | # | Finding | Severity | Status |
@@ -70,7 +82,7 @@ Each feature is listed as Verified, Partially verified or Unverified, with the e
 | A-2 | Decorative `border` `#2E2E34` = 1.33:1; unusable for input outlines. | Low | Added `border-control` for inputs. |
 | A-3 | No optical/USB hardware → disc and USB paths can't be verified by the developer. | High | Mitigated: fake drive traces, VHDX + QEMU, community drive reports, Unverified labels (D-024, D-029, D-031). |
 | A-4 | Elevated helper is an attack surface. | High | Design: typed messages only, pipe ACL to current user SID, per-session nonce, helper exits after job. Review at M0. |
-| A-5 | USB writer could target the wrong disk. | High | Design: refuse system/boot/pagefile/fixed disks, typed confirmation for > 64 GB, VHDX only behind dev flag. Tests in M2. |
+| A-5 | USB writer could target the wrong disk. | High | Mitigated by D-056: physical-disk writes are blocked; image-file writes are the only write-test route until Windows boot-disk protection is verified. |
 | A-6 | LAME is LGPL; static linking would affect MIT distribution. | Medium | Runtime `LoadLibrary`, separate DLL, notice in CREDITS. |
 | A-7 | Reverse-engineered formats (MDS, NRG) could misread. | Low | Read-only, Unverified label, fuzz tests in M1. |
 | A-8 | GNU toolchain + `windows` crate COM untested. | Medium | Verify in M0; CI MSVC remains the release path. |

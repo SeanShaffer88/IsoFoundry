@@ -10,9 +10,15 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io::{Read, Write};
 
-pub const PROTOCOL: u32 = 2;
+pub const PROTOCOL: u32 = 3;
 pub const MAX_FRAME: usize = 64 * 1024;
 pub const NONCE_BYTES: usize = 32;
+pub const PHYSICAL_USB_WRITE_BLOCKED: &str =
+    "physical USB writes are disabled until separate boot-disk protection is verified; disk-image file tests still work";
+
+pub fn is_physical_usb_write(kind: &UsbJobKind) -> bool {
+    !matches!(kind, UsbJobKind::ReadImage { .. })
+}
 
 /// Messages the app sends to the helper.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +40,11 @@ pub enum Request {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UsbJob {
     pub disk_number: u32,
+    /// Snapshot from the device list the user chose. The helper compares it
+    /// again immediately before writing so a reused disk number is not enough.
+    pub expected_model: String,
+    pub expected_size_bytes: u64,
+    pub expected_device_id: String,
     pub kind: UsbJobKind,
 }
 
@@ -54,6 +65,9 @@ pub enum UsbJobKind {
 pub struct DiskDto {
     pub number: u32,
     pub model: String,
+    /// Storage serial when the device supplies one; internal safety identity,
+    /// never shown in the UI or logs.
+    pub device_id: String,
     pub size_bytes: u64,
     /// "usb" | "nvme" | "sata" | "scsi" | "virtual" | "other"
     pub bus: String,
@@ -232,5 +246,16 @@ mod tests {
         let p = pipe_name(&"f".repeat(64));
         assert!(p.starts_with(r"\\.\pipe\IsoFoundry-"));
         assert!(p.ends_with(&"f".repeat(16)));
+    }
+
+    #[test]
+    fn physical_usb_writes_are_distinguished_from_reads() {
+        assert!(is_physical_usb_write(&UsbJobKind::Files {
+            image: "installer.iso".into(),
+            scheme: "mbr".into(),
+            windows_installer: false,
+        }));
+        assert!(is_physical_usb_write(&UsbJobKind::RawWrite { image: "image.img".into(), verify: true }));
+        assert!(!is_physical_usb_write(&UsbJobKind::ReadImage { out: "backup.img".into(), limit_bytes: None }));
     }
 }

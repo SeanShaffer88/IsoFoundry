@@ -85,6 +85,12 @@ pub struct Settings {
     /// Main window placement; `None` = centered default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowPlacement>,
+    /// Keep the tool-details drawer open in the workspace.
+    pub details_open: bool,
+    /// Keep the recent-activity drawer open in the workspace.
+    pub activity_open: bool,
+    /// Reopen the Activity workspace instead of the tool grid.
+    pub activity_mode: bool,
 }
 
 impl Default for Settings {
@@ -102,6 +108,9 @@ impl Default for Settings {
             log_level: LogLevel::Info,
             language: "en-US".into(),
             window: None,
+            details_open: false,
+            activity_open: false,
+            activity_mode: false,
         }
     }
 }

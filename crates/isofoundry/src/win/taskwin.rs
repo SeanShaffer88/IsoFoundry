@@ -12,19 +12,36 @@ use super::util::{from_wide, wide};
 use crate::layout::px;
 use crate::theme::{self, colorref};
 use if_core::job::{CancelToken, Progress};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE};
-use windows_sys::Win32::Graphics::Gdi::{CreateSolidBrush, SetBkColor, SetTextColor, HDC, HFONT};
+use windows_sys::Win32::Graphics::Gdi::{
+    AngleArc, BeginPaint, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, MoveToEx,
+    SelectObject, SetBkColor, SetBkMode, SetTextColor, COLORREF, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER,
+    HBRUSH, HDC, HFONT, PAINTSTRUCT, PS_SOLID, TRANSPARENT,
+};
 use windows_sys::Win32::UI::Controls::Dialogs::{
     GetOpenFileNameW, GetSaveFileNameW, OFN_ALLOWMULTISELECT, OFN_EXPLORER, OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR,
     OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST, OPENFILENAMEW,
 };
 use windows_sys::Win32::UI::Controls::*;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
+use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+const RADIAL_CLASS: &str = "IsoFoundryFluentRadial";
+const WM_SET_RADIAL_PROGRESS: u32 = WM_APP + 31;
+const LOG_TOGGLE_ID: u16 = 0xFFFE;
+const LOG_HEADER_H: i32 = 22;
+const RADIAL_DIAMETER: i32 = 40;
+
+thread_local! {
+    static PROGRESS_STATUS_ROW: RefCell<HashMap<HWND, (i32, i32)>> = RefCell::new(HashMap::new());
+}
 
 /// Posted to the task window when the worker has stored its result.
 pub(crate) const WM_JOB_DONE: u32 = WM_APP + 2;
@@ -46,6 +63,14 @@ pub(crate) fn ctx() -> Ctx {
 
 pub(crate) fn instance() -> windows_sys::Win32::Foundation::HINSTANCE {
     gui::instance()
+}
+
+/// Process-lifetime brushes are cached by color; Windows owns the returned
+/// handle for as long as controls continue to reference it.
+pub(crate) fn color_brush(color: theme::Rgb) -> HBRUSH {
+    static BRUSHES: OnceLock<Mutex<HashMap<theme::Rgb, usize>>> = OnceLock::new();
+    let mut brushes = BRUSHES.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
+    *brushes.entry(color).or_insert_with(|| unsafe { CreateSolidBrush(colorref(color)) as usize }) as HBRUSH
 }
 
 // ---------------------------------------------------------------- jobs
@@ -191,7 +216,7 @@ pub(crate) fn register_class(name: &str, proc: WNDPROC) {
             hInstance: instance(),
             hIcon: std::ptr::null_mut(),
             hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
-            hbrBackground: CreateSolidBrush(colorref(theme::SURFACE)),
+            hbrBackground: color_brush(gui::palette().surface),
             lpszMenuName: std::ptr::null(),
             lpszClassName: cls.as_ptr(),
         };
@@ -228,8 +253,9 @@ pub(crate) fn create_window(owner: HWND, class: &str, title: &str, w: i32, h: i3
             state,
         );
         if !hwnd.is_null() {
-            let dark: i32 = 1;
+            let dark = i32::from(gui::palette().dark_theme);
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
+            SetWindowSubclass(hwnd, Some(theme_subclass), 7, 0);
             let icc = INITCOMMONCONTROLSEX {
                 dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
                 dwICC: ICC_PROGRESS_CLASS,
@@ -261,15 +287,15 @@ pub(crate) fn state_ptr<T>(hwnd: HWND) -> *mut T {
 /// Dark-theme colours for child controls (same handling as the main
 /// window's text view); call from `WM_CTLCOLOREDIT`/`WM_CTLCOLORSTATIC`/
 /// `WM_CTLCOLORLISTBOX` and return the result.
-pub(crate) fn ctl_color(wp: WPARAM) -> LRESULT {
+pub(crate) fn ctl_color(wp: WPARAM, msg: u32) -> LRESULT {
     let p = gui::palette();
+    let bg = if msg == WM_CTLCOLOREDIT { p.sunken } else { p.surface };
     let dc = wp as HDC;
     // SAFETY: `wp` is the control's DC during the colour messages.
     unsafe {
         SetTextColor(dc, colorref(p.text));
-        SetBkColor(dc, colorref(p.surface));
-        static BRUSH: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-        *BRUSH.get_or_init(|| CreateSolidBrush(colorref(theme::SURFACE)) as usize) as LRESULT
+        SetBkColor(dc, colorref(bg));
+        color_brush(bg) as LRESULT
     }
 }
 
@@ -278,11 +304,52 @@ pub(crate) fn ctl_color(wp: WPARAM) -> LRESULT {
 /// the standard controls paint with the light theme, whose label text is a
 /// low-contrast gray on our dark background.
 pub(crate) fn dark_theme(h: HWND) {
-    static NAME: std::sync::OnceLock<Vec<u16>> = std::sync::OnceLock::new();
-    let name = NAME.get_or_init(|| wide("DarkMode_Explorer"));
+    static DARK_NAME: std::sync::OnceLock<Vec<u16>> = std::sync::OnceLock::new();
+    let dark_name = DARK_NAME.get_or_init(|| wide("DarkMode_Explorer"));
     // SAFETY: a theme name for our own control; failure just keeps the
     // default theme.
-    unsafe { SetWindowTheme(h, name.as_ptr(), std::ptr::null()) };
+    unsafe {
+        if gui::palette().dark_theme {
+            SetWindowTheme(h, dark_name.as_ptr(), std::ptr::null());
+        } else {
+            SetWindowTheme(h, std::ptr::null(), std::ptr::null());
+        }
+    }
+}
+
+unsafe extern "system" fn retheme_child(hwnd: HWND, _param: LPARAM) -> i32 {
+    dark_theme(hwnd);
+    1
+}
+
+unsafe extern "system" fn theme_subclass(
+    hwnd: HWND,
+    msg: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+    _id: usize,
+    _data: usize,
+) -> LRESULT {
+    if msg == WM_COMMAND && (wp & 0xFFFF) as u16 == LOG_TOGGLE_ID && ((wp >> 16) & 0xFFFF) as u16 == BN_CLICKED {
+        let toggle = GetDlgItem(hwnd, LOG_TOGGLE_ID as i32);
+        let log = GetWindowLongPtrW(toggle, GWLP_USERDATA) as HWND;
+        if !log.is_null() {
+            let open = IsWindowVisible(log) == 0;
+            ShowWindow(log, if open { SW_SHOW } else { SW_HIDE });
+            let text = wide(if open { "Logs ▾" } else { "Logs ▸" });
+            SetWindowTextW(toggle, text.as_ptr());
+        }
+        return 0;
+    }
+    if matches!(msg, WM_SETTINGCHANGE | WM_SYSCOLORCHANGE | WM_THEMECHANGED) {
+        let p = gui::refresh_palette();
+        SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, color_brush(p.surface) as isize);
+        let dark = i32::from(p.dark_theme);
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE as u32, (&dark as *const i32).cast(), 4);
+        EnumChildWindows(hwnd, Some(retheme_child), 0);
+        RedrawWindow(hwnd, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+    }
+    DefSubclassProc(hwnd, msg, wp, lp)
 }
 
 // ---------------------------------------------------------------- controls
@@ -329,6 +396,14 @@ fn child(
 
 pub(crate) fn label(parent: HWND, x: i32, y: i32, w: i32, text: &str) -> HWND {
     let f = ctx().label;
+    let status_row = PROGRESS_STATUS_ROW.with(|rows| rows.borrow_mut().remove(&parent));
+    let (x, y, w) = match status_row {
+        Some((px, py)) if x == px && (py + 20..=py + 24).contains(&y) => {
+            let reserve = 52;
+            (x + reserve, py + 10, (w - reserve).max(100))
+        }
+        _ => (x, y, w),
+    };
     child(parent, "STATIC", text, 0, x, y, w, 18, 0, f) // style 0 = SS_LEFT
 }
 
@@ -350,18 +425,35 @@ pub(crate) fn edit(parent: HWND, id: u16, x: i32, y: i32, w: i32, text: &str, mo
 
 pub(crate) fn multiline(parent: HWND, id: u16, x: i32, y: i32, w: i32, h: i32) -> HWND {
     let c = ctx();
-    child(
+    let toggle = child(
+        parent,
+        "BUTTON",
+        "Logs ▸",
+        WS_TABSTOP | BS_PUSHBUTTON as u32,
+        x,
+        y,
+        w,
+        LOG_HEADER_H,
+        LOG_TOGGLE_ID,
+        c.label,
+    );
+    let log = child(
         parent,
         "EDIT",
         "",
         WS_TABSTOP | WS_BORDER | WS_VSCROLL | ES_MULTILINE as u32 | ES_READONLY as u32 | ES_AUTOVSCROLL as u32,
         x,
-        y,
+        y + LOG_HEADER_H,
         w,
-        h,
+        (h - LOG_HEADER_H).max(1),
         id,
         c.mono,
-    )
+    );
+    unsafe {
+        SetWindowLongPtrW(toggle, GWLP_USERDATA, log as isize);
+        ShowWindow(log, SW_HIDE);
+    }
+    log
 }
 
 pub(crate) fn button(parent: HWND, id: u16, x: i32, y: i32, w: i32, text: &str) -> HWND {
@@ -397,43 +489,132 @@ pub(crate) fn listbox(parent: HWND, id: u16, x: i32, y: i32, w: i32, h: i32) -> 
     )
 }
 
-pub(crate) fn progress_bar(parent: HWND, x: i32, y: i32, w: i32) -> HWND {
+pub(crate) fn progress_bar(parent: HWND, x: i32, y: i32, _w: i32) -> HWND {
     let c = ctx();
-    let cls = wide("msctls_progress32");
-    // SAFETY: common-control class registered by `create_window`.
+    PROGRESS_STATUS_ROW.with(|rows| {
+        rows.borrow_mut().insert(parent, (x, y));
+    });
+    ensure_radial_class();
+    let cls = wide(RADIAL_CLASS);
+    let label = wide("Progress");
+    // SAFETY: custom owner-drawn radial class registered below.
     unsafe {
         let hwnd = CreateWindowExW(
             0,
             cls.as_ptr(),
-            std::ptr::null(),
-            WS_CHILD | WS_VISIBLE | 0x08, // PBS_MARQUEE
+            label.as_ptr(),
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP,
             px(x, c.dpi),
             px(y, c.dpi),
-            px(w, c.dpi),
-            px(14, c.dpi),
+            px(RADIAL_DIAMETER, c.dpi),
+            px(RADIAL_DIAMETER, c.dpi),
             parent,
             std::ptr::null_mut(),
             instance(),
             std::ptr::null(),
         );
-        SendMessageW(hwnd, PBM_SETRANGE32, 0, 1000);
-        dark_theme(hwnd);
         hwnd
     }
 }
 
-/// Shows determinate progress (`Some`) or the marquee (`None`).
+fn ensure_radial_class() {
+    static REGISTERED: OnceLock<()> = OnceLock::new();
+    REGISTERED.get_or_init(|| {
+        let cls = wide(RADIAL_CLASS);
+        // SAFETY: this class is process-local and registered once.
+        unsafe {
+            let wc = WNDCLASSW {
+                style: CS_HREDRAW | CS_VREDRAW,
+                lpfnWndProc: Some(radial_proc),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: instance(),
+                hIcon: std::ptr::null_mut(),
+                hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
+                hbrBackground: color_brush(gui::palette().surface),
+                lpszMenuName: std::ptr::null(),
+                lpszClassName: cls.as_ptr(),
+            };
+            RegisterClassW(&wc);
+        }
+    });
+}
+
+unsafe extern "system" fn radial_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    match msg {
+        WM_ERASEBKGND => 1,
+        WM_SET_RADIAL_PROGRESS => {
+            let state = if wp != 0 { -1 } else { lp as u32 as isize };
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, state);
+            InvalidateRect(hwnd, std::ptr::null(), 1);
+            0
+        }
+        WM_PAINT => {
+            let mut ps: PAINTSTRUCT = std::mem::zeroed();
+            let dc = BeginPaint(hwnd, &mut ps);
+            let mut rc: windows_sys::Win32::Foundation::RECT = std::mem::zeroed();
+            GetClientRect(hwnd, &mut rc);
+            let p = gui::palette();
+            FillRect(dc, &rc, color_brush(p.surface));
+            SetBkMode(dc, TRANSPARENT as i32);
+
+            let diameter = (rc.right - rc.left).min(rc.bottom - rc.top);
+            let cx = rc.left + diameter / 2;
+            let cy = rc.top + diameter / 2;
+            let radius = (diameter / 2 - px(4, ctx().dpi)).max(2);
+            let track = CreatePen(PS_SOLID, px(3, ctx().dpi).max(1), colorref(p.border) as COLORREF);
+            let old_pen = SelectObject(dc, track);
+            MoveToEx(dc, cx, cy - radius, std::ptr::null_mut());
+            AngleArc(dc, cx, cy, radius, -90.0, 359.9);
+
+            let state = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+            let (sweep, center_text) = if state < 0 {
+                (92.0, "…".to_string())
+            } else {
+                let fraction = f32::from_bits(state as u32).clamp(0.0, 1.0);
+                (360.0 * fraction, format!("{:.0}%", fraction * 100.0))
+            };
+            if sweep > 0.0 {
+                let accent = CreatePen(PS_SOLID, px(3, ctx().dpi).max(1), colorref(p.accent) as COLORREF);
+                SelectObject(dc, accent);
+                MoveToEx(dc, cx, cy - radius, std::ptr::null_mut());
+                AngleArc(dc, cx, cy, radius, -90.0, sweep);
+                SelectObject(dc, track);
+                DeleteObject(accent);
+            }
+
+            SetTextColor(dc, colorref(p.text) as COLORREF);
+            let font = ctx().mono;
+            let old_font = SelectObject(dc, font);
+            let text: Vec<u16> = center_text.encode_utf16().collect();
+            let mut tr =
+                windows_sys::Win32::Foundation::RECT { left: rc.left, top: rc.top, right: rc.right, bottom: rc.bottom };
+            DrawTextW(
+                dc,
+                text.as_ptr(),
+                text.len() as i32,
+                &mut tr,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+            );
+            SelectObject(dc, old_font);
+            SelectObject(dc, old_pen);
+            DeleteObject(track);
+            EndPaint(hwnd, &ps);
+            0
+        }
+        _ => DefWindowProcW(hwnd, msg, wp, lp),
+    }
+}
+
+/// Shows determinate radial progress (`Some`) or a static indeterminate arc (`None`).
 pub(crate) fn progress_show(bar: HWND, frac: Option<f32>) {
-    // SAFETY: progress-bar messages on our own control.
+    // SAFETY: custom progress message sent only to our radial control.
     unsafe {
         match frac {
             Some(f) => {
-                SendMessageW(bar, PBM_SETMARQUEE, 0, 0);
-                SendMessageW(bar, PBM_SETPOS, (f.clamp(0.0, 1.0) * 1000.0) as usize, 0);
+                SendMessageW(bar, WM_SET_RADIAL_PROGRESS, 0, f.clamp(0.0, 1.0).to_bits() as LPARAM);
             }
-            None => {
-                SendMessageW(bar, PBM_SETMARQUEE, 1, 0);
-            }
+            None => SendMessageW(bar, WM_SET_RADIAL_PROGRESS, 1, 0),
         }
     }
 }

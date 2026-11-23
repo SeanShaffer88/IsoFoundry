@@ -2,6 +2,7 @@
 
 use crate::source::SectorSource;
 use crate::{bad, Error, Result, SECTOR};
+use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -286,6 +287,7 @@ impl Volume {
         mut progress: impl FnMut(u64, u64) -> bool,
     ) -> Result<ExtractReport> {
         let items = if entry.dir { self.walk(entry)? } else { vec![(entry.name.clone(), entry.clone())] };
+        validate_unique_outputs(&items)?;
         let total: u64 = items.iter().filter(|(_, e)| !e.dir).map(|(_, e)| e.size).sum();
         std::fs::create_dir_all(dest)?;
         let mut report = ExtractReport::default();
@@ -301,25 +303,30 @@ impl Volume {
             if let Some(parent) = out.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let mut tmp_name = out.file_name().unwrap_or_default().to_os_string();
-            tmp_name.push(".isofoundry-part");
-            let tmp = out.with_file_name(tmp_name);
-            let mut f = std::fs::File::create(&tmp)?;
+            let (tmp, mut f) = create_temp_file(&out)?;
             let mut off = 0u64;
-            while off < e.size {
-                let n = self.read(e, off, &mut buf)?;
-                f.write_all(&buf[..n])?;
-                off += n as u64;
-                done += n as u64;
-                if !progress(done, total) {
-                    drop(f);
-                    let _ = std::fs::remove_file(&tmp);
-                    return Err(Error::Cancelled);
+            let result = (|| {
+                while off < e.size {
+                    let n = self.read(e, off, &mut buf)?;
+                    f.write_all(&buf[..n])?;
+                    off += n as u64;
+                    done += n as u64;
+                    if !progress(done, total) {
+                        return Err(Error::Cancelled);
+                    }
                 }
-            }
-            f.sync_all()?;
+                f.sync_all()?;
+                Ok(())
+            })();
             drop(f);
-            std::fs::rename(&tmp, &out)?;
+            if let Err(e) = result {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(e);
+            }
+            if let Err(e) = std::fs::rename(&tmp, &out) {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(e.into());
+            }
             report.files += 1;
             report.bytes += e.size;
             if rel != &sanitize_rel(rel) {
@@ -366,15 +373,63 @@ fn sanitize_rel(rel: &str) -> String {
     rel.split('/').map(sanitize_name).collect::<Vec<_>>().join("/")
 }
 
+fn validate_unique_outputs(items: &[(String, Entry)]) -> Result<()> {
+    let mut seen = HashSet::new();
+    for (rel, _) in items {
+        let output = sanitize_rel(rel);
+        if !seen.insert(output.to_lowercase()) {
+            return bad(format!("multiple image paths map to the same Windows output name: {output}"));
+        }
+    }
+    Ok(())
+}
+
+fn create_temp_file(out: &Path) -> Result<(PathBuf, std::fs::File)> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+    for _ in 0..100 {
+        let mut name = out.file_name().unwrap_or_default().to_os_string();
+        name.push(format!(".isofoundry-part-{}-{}", std::process::id(), NEXT_TEMP.fetch_add(1, Ordering::Relaxed)));
+        let path = out.with_file_name(name);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => return Ok((path, file)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+    bad("could not create a unique temporary extraction file")
+}
+
 fn safe_join(dest: &Path, rel: &str) -> Result<PathBuf> {
     let mut p = dest.to_path_buf();
     for part in rel.split('/') {
         p.push(sanitize_name(part));
+        match std::fs::symlink_metadata(&p) {
+            Ok(meta) if is_reparse_point(&meta) => {
+                return bad(format!("refusing to extract through a symbolic link or reparse point: {}", p.display()));
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
     }
     if !p.starts_with(dest) {
         return bad(format!("refusing to write outside the destination: {rel}"));
     }
     Ok(p)
+}
+
+#[cfg(windows)]
+fn is_reparse_point(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    meta.file_type().is_symlink() || meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_reparse_point(meta: &std::fs::Metadata) -> bool {
+    meta.file_type().is_symlink()
 }
 
 /// Days since 1970-01-01 for a civil date (proleptic Gregorian).
@@ -418,6 +473,37 @@ mod tests {
         assert_eq!(sanitize_name("trail. "), "trail");
         let d = Path::new("/tmp/x");
         assert!(safe_join(d, "../../etc/passwd").unwrap().starts_with(d));
+    }
+
+    #[test]
+    fn sanitized_names_cannot_silently_overwrite_each_other() {
+        let entry = Entry {
+            name: String::new(),
+            dir: false,
+            size: 0,
+            mtime: None,
+            hidden: false,
+            data: Data::Inline(Vec::new()),
+        };
+        let items = vec![("A:B.txt".into(), entry.clone()), ("A_B.txt".into(), entry)];
+        assert!(validate_unique_outputs(&items).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn extraction_refuses_existing_symlink_components() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!("if-image-extract-symlink-{}", std::process::id()));
+        let dest = root.join("dest");
+        let outside = root.join("outside");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, dest.join("linked")).unwrap();
+
+        assert!(safe_join(&dest, "linked/file.txt").is_err());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

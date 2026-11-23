@@ -595,6 +595,16 @@ mod tests {
         p
     }
 
+    fn read_extracted_file(dir: &Path, name: &str) -> std::io::Result<Vec<u8>> {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_name().to_string_lossy().eq_ignore_ascii_case(name) {
+                return std::fs::read(entry.path());
+            }
+        }
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("{name} was not extracted")))
+    }
+
     fn xiso_fixture() -> PathBuf {
         let d = tmp("xiso");
         std::fs::create_dir_all(&d).unwrap();
@@ -705,7 +715,7 @@ mod tests {
             "xdvdfs",
         ]);
         assert_eq!(code, 0, "{err}");
-        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        assert_eq!(read_extracted_file(&dest, "hello.txt").unwrap(), b"hello");
         std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
     }
 
@@ -730,7 +740,7 @@ mod tests {
             "fat",
         ]);
         assert_eq!(code, 0, "{err}");
-        assert_eq!(std::fs::read(dest.join("hello.txt")).unwrap(), b"hello");
+        assert_eq!(read_extracted_file(&dest, "hello.txt").unwrap(), b"hello");
         std::fs::remove_dir_all(image.parent().unwrap()).unwrap();
     }
 
@@ -768,7 +778,7 @@ mod tests {
                 "fat",
             ]);
             assert_eq!(code, 0, "{out}{err}");
-            assert_eq!(std::fs::read(extracted.join("hello.txt")).unwrap(), b"hello");
+            assert_eq!(read_extracted_file(&extracted, "hello.txt").unwrap(), b"hello");
 
             let edited = dir.join(format!("edited-{index}.vhd"));
             let (code, out, err) = call(&[

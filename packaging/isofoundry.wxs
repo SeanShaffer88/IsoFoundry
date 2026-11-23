@@ -17,8 +17,8 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of IsoFoundry is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- Windows 10 22H2 (build 19045) or later. -->
-    <Launch Condition="Installed OR VersionNT64 &gt;= 603" Message="IsoFoundry needs 64-bit Windows 10 or Windows 11." />
+    <!-- Windows 11 x64 (build 22000) or later. -->
+    <Launch Condition="Installed OR (VersionNT64 &gt;= 1000 AND WindowsBuild &gt;= 22000)" Message="IsoFoundry needs Windows 11 x64 or later." />
 
     <Icon Id="IsoFoundryIcon" SourceFile="$(var.SourceDir)\icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="IsoFoundryIcon" />

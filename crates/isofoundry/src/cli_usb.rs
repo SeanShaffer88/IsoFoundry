@@ -2,11 +2,10 @@
 //! `windows-to-usb`.
 //!
 //! Physical disks go through the elevated helper (the Platform trait);
-//! `--file` targets a disk-image file (VHDX route, D-029) and runs
-//! in-process through `usbwriter`, gated by `--dev-allow-vdisk`.
-//! Erasing a physical disk requires `--yes`; the summary of the safety
-//! rules lives in `usbwriter::device::assess_target`, which runs on
-//! both routes before anything is written.
+//! Physical-disk reads go through the elevated helper. Physical writes
+//! are disabled until separate boot-disk protection is verified.
+//! `--file` targets a disk-image file and runs in-process for tests,
+//! gated by `--dev-allow-vdisk`.
 
 use crate::cli::{Global, Out, Platform};
 use if_core::error::Exit;
@@ -138,17 +137,23 @@ fn execute(
 ) -> Result<(usize, u64, Vec<String>), Fail> {
     match target {
         Target::Disk(n) => {
-            if !g.yes && !g.dry_run {
-                return fail(
-                    Exit::Usage,
-                    "erasing a physical disk needs --yes (run `usb list` first and check the disk number)",
-                );
+            if if_core::ipc::is_physical_usb_write(kind) {
+                return fail(Exit::Usage, if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED);
             }
             if g.dry_run {
                 o.ok_text(&format!("would run {kind:?} on disk {n}"));
                 return Ok((0, 0, vec![]));
             }
-            let job = UsbJob { disk_number: *n, kind: kind.clone() };
+            let selected = platform.usb_list()?.into_iter().find(|d| d.number == *n).ok_or_else(|| {
+                (Exit::Io, format!("disk {n} is not present; run `usb list` and select a current disk"))
+            })?;
+            let job = UsbJob {
+                disk_number: selected.number,
+                expected_model: selected.model,
+                expected_size_bytes: selected.size_bytes,
+                expected_device_id: selected.device_id,
+                kind: kind.clone(),
+            };
             let progress = Progress::default();
             platform.usb_job(&job, &progress)
         }
@@ -170,6 +175,7 @@ fn file_disk_info(path: &Path) -> Result<DiskInfo, Fail> {
     Ok(DiskInfo {
         number: 0,
         model: format!("disk image file {}", path.display()),
+        device_id: String::new(),
         size_bytes: size,
         bus: usbwriter::device::Bus::Virtual,
         removable: false,
@@ -258,7 +264,7 @@ fn usb_write(args: &Args, g: &Global, platform: &dyn Platform, o: &mut Out<'_>) 
     let target = pick_target(args)?;
     if let Target::File(_) = target {
         if !args.has("dev-allow-vdisk") {
-            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they exist for VHDX testing, D-029)");
+            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they are disk-image test targets)");
         }
     }
     let mode = args.flag("mode").unwrap_or("files");
@@ -278,7 +284,7 @@ fn usb_read(args: &Args, g: &Global, platform: &dyn Platform, o: &mut Out<'_>) -
     let target = pick_target(args)?;
     if let Target::File(_) = target {
         if !args.has("dev-allow-vdisk") {
-            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they exist for VHDX testing, D-029)");
+            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they are disk-image test targets)");
         }
     }
     let out = args.flag("out").ok_or((Exit::Usage, "usb read needs --out FILE".to_string()))?;
@@ -301,7 +307,7 @@ fn windows_to_usb(tail: &[String], g: &Global, platform: &dyn Platform, o: &mut 
     let target = pick_target(&args)?;
     if let Target::File(_) = target {
         if !args.has("dev-allow-vdisk") {
-            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they exist for VHDX testing, D-029)");
+            return fail(Exit::Usage, "file targets need --dev-allow-vdisk (they are disk-image test targets)");
         }
     }
     let layout = args.flag("layout").unwrap_or("mbr");

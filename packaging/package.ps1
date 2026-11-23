@@ -13,7 +13,7 @@
 #>
 param(
   [Parameter(Mandatory)] [string] $Target,
-  [Parameter(Mandatory)] [ValidateSet('x64', 'arm64')] [string] $Arch,
+  [Parameter(Mandatory)] [ValidateSet('x64')] [string] $Arch,
   [string] $OutDir = 'dist',
   [switch] $Installers
 )

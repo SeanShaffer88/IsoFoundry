@@ -18,7 +18,7 @@ The primary user is someone managing legacy disk images who needs to inspect and
 
 ## Tech Stack
 
-- Rust 2021, minimum supported Rust 1.82.
+- Rust 2021, minimum supported Rust 1.88.
 - Workspace crates: `if-image` for format parsing and editing; `isofoundry` for CLI/GUI integration.
 - Current `if-image` dependencies include `miniz_oxide` and `sha1`. Preserve the small-dependency policy.
 - Windows desktop application with Win32 UI and CLI; format logic remains platform-independent where practical.

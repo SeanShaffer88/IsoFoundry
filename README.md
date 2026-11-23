@@ -2,7 +2,7 @@
 
 # IsoFoundry
 
-**Open source disc burning, imaging & bootable USB suite** for Windows 10 22H2 / 11 (x64): one dark window with a grid of tasks, in the spirit of AnyBurn Pro — plus a full command line for every task. Free, offline, no telemetry.
+**Open source disc burning, imaging & bootable USB suite** for Windows 11 x64: one dark window with a grid of tasks, in the spirit of AnyBurn Pro — plus a full command line for every task. Free, offline, no telemetry.
 
 ## TL;DR
 
@@ -23,7 +23,7 @@ IsoFoundry is a single free Windows program for working with CDs, DVDs, Blu-rays
 
 ## What the program does today
 
-- **Main window** — a 21-task grid (owner-drawn buttons with split-button menus; tasks that need administrator rights carry a shield mark), menus for Task / Options / Help, tooltips on every control, full keyboard navigation, a visible focus ring, a high-contrast palette, Per-Monitor DPI v2 scaling, a dark title bar, and window placement that is saved and checked against your monitors. One instance at a time.
+- **Main window** — a 21-task grid with tool details, Tasks/Activity modes, and collapsible activity/log drawers. Split-button menus, administrator shields, tooltips, keyboard navigation, visible focus, FluentGruv dark/light palettes, Windows high contrast, Per-Monitor DPI v2 scaling, and monitor-validated saved placement. One instance at a time.
 - **Command line** — also as the console twin `isofoundry.com`, so shells wait for it and capture its output: `--version`, `list` (every task, its CLI name, and when it ships), `helper-check [--elevated]`, `report --out FILE` (a redacted drive report for bug reports), and `clean`. Global `--json`, `--dry-run` and `--verbose/--debug` options. The image commands below all work; tasks from later milestones answer "not implemented yet" (exit code 40) until their milestone ships.
 - **Elevated helper** — `isofoundry-helper.exe` does the few jobs that truly need administrator rights. It talks to the main program over a named pipe restricted to you, Administrators and SYSTEM, checks the calling process, and uses a per-session nonce with typed messages only.
 - **Settings & data** — versioned TOML settings with atomic writes (an unreadable settings file is quarantined, never silently overwritten), local logs, and a portable mode: put an `IsoFoundry.portable` file next to the program and everything stays in `data\` beside it.
@@ -47,10 +47,10 @@ Formats: ISO 9660 (with Rock Ridge names), Joliet, UDF 1.02–2.60 (physical, sp
 
 ## USB tools
 
-- **`bootable-usb`** — turn an ISO into a bootable USB drive: partition it (MBR or GPT), format FAT32 and copy the image's files, or copy the image byte-for-byte in raw mode with an optional SHA-256 verify afterwards. Its **Save USB drive to image file** variant reads a physical disk or disk-image file byte-for-byte, with an optional byte limit; it is also available as `usb read`.
-- **`install-windows-usb`** — the same write with Windows installer layouts: MBR+FAT32 (default), GPT+FAT32, or GPT+NTFS for install images over the FAT32 file limit. The boot files are Microsoft's own, copied unchanged from the ISO, so Secure Boot keeps working.
+- **`bootable-usb`** — prepare bootable image targets: MBR or GPT, FAT32 file-copy mode, raw mode and optional SHA-256 verification. Physical USB writes are blocked for safety; image-file test writes and physical-disk reads work. **Save USB drive to image file** reads a physical disk or image file with an optional byte limit.
+- **`install-windows-usb`** — prepares Windows installer layouts: MBR+FAT32, GPT+FAT32, or GPT+NTFS for images over FAT32's file limit. Physical USB writes stay blocked; disk-image test targets work.
 
-Writing is guarded: the system disk, the boot/pagefile disk and fixed disks are refused, and a target with mounted volumes or over 64 GB needs a typed ERASE confirmation. The engine is tested against disk-image files (the VHDX route); physical disks are **Unverified** until exercised on real hardware.
+Physical USB writes are disabled until a separate EFI/System Reserved boot disk can be reliably blocked. Disk-image test writes and physical-disk reads remain available.
 
 ## Audio tools
 
@@ -86,11 +86,10 @@ isofoundry checksum disc.iso --dat disc.dat
 isofoundry verify disc.iso --dat redump.dat
 isofoundry mount disc.iso
 isofoundry unmount disc.iso
-isofoundry usb list                                Every disk, and whether it is safe to write
-isofoundry usb write linux.iso --disk 2 --yes      Bootable USB: copy the image's files (MBR; add --scheme gpt)
-isofoundry usb write linux.iso --disk 2 --mode raw --verify --yes
+isofoundry usb list                                List disks; physical writes are blocked
+isofoundry usb write linux.iso --file usb-test.img --dev-allow-vdisk   Write to a pre-sized disk-image file
 isofoundry usb read --disk 2 --out stick.img       Copy a USB drive back to an image file
-isofoundry windows-to-usb win11.iso --disk 2 --yes  Windows installer USB (add --layout gpt-ntfs for a big install.wim)
+isofoundry windows-to-usb win11.iso --file usb-test.img --dev-allow-vdisk  Windows installer image-file test
 isofoundry convert-audio *.flac --to mp3 --bitrate 192 --replaygain   Batch-convert audio (tags carried across)
 isofoundry burn-image game.iso --fake                 Burn an image (simulated drive)
 isofoundry burn-files D:\Photos --drive E: --yes      Burn a folder to the disc in E:
@@ -129,7 +128,7 @@ The 0.2.0 main window — the 21-task grid:
 
 ## Requirements
 
-- Windows 10 22H2 or Windows 11, x64. Releases ship x64 only.
+- Windows 11 x64.
 - No runtime prerequisites — the release builds are self-contained native executables.
 - Administrator rights are asked for only by the tasks that need them, with the reason shown first.
 - Disc features need an optical drive, obviously — but see [Hardware compatibility](#hardware-compatibility): they are developed against a simulated drive.
@@ -145,11 +144,11 @@ Check downloads against `SHA256SUMS.txt`. Builds are not code-signed yet, so Win
 
 ## Configuration
 
-Settings live in a versioned TOML file in the program's data folder (portable builds: `data\` beside the program; installed builds: your per-user data folder). Options today cover log detail, the finish sound and the window placement; the data folder can be opened from Options → Open data folder. `isofoundry clean` removes settings, logs and reports (`--dry-run` lists them first, `--yes` skips the confirmation). There is no account, no sync and nothing to sign into.
+Settings live in a versioned TOML file in the program's data folder (portable builds: `data\` beside the program; installed builds: your per-user data folder). They include log detail, finish actions, workspace mode, open drawers and window placement; the data folder can be opened from Options → Open data folder. `isofoundry clean` removes settings, logs and reports (`--dry-run` lists them first, `--yes` skips the confirmation). There is no account, no sync and nothing to sign into.
 
 ## Build from source
 
-You need the Rust toolchain (Rust 1.82 or newer; the workspace is edition 2021).
+You need the Rust toolchain (Rust 1.88 or newer; the workspace is edition 2021).
 
 ```powershell
 # Official builds: GitHub Actions, MSVC x64 (static CRT)
@@ -180,7 +179,7 @@ The image test suite runs against real fixture images in `crates/if-image/tests/
 
 ## Hardware compatibility
 
-Disc features are developed against a simulated drive — the developer has no optical drive. Real-drive results come from users: Help → **Export drive report**, then open a "Drive report" issue with it attached. Confirmed drives and results are tracked in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). USB features are tested against attached VHDX disks and QEMU boot only; real flash hardware is **Unverified**.
+Disc features are developed against a simulated drive — the developer has no optical drive. Real-drive results come from users: Help → **Export drive report**, then open a "Drive report" issue with it attached. Confirmed drives and results are tracked in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). USB image writes are tested against disk-image files and QEMU boot; physical USB writes are disabled until boot-disk protection is verified.
 
 ## Privacy & security
 

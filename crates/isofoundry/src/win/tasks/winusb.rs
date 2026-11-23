@@ -1,8 +1,7 @@
 //! Install Windows to USB window (M2): pick a Windows ISO, pick a
 //! layout (MBR+FAT32 default, GPT+FAT32, GPT+NTFS for install images
-//! over the FAT32 file limit), pick a target, confirm, write. All
-//! boot files are Microsoft's own, copied unchanged from the ISO, so
-//! Secure Boot keeps working.
+//! over the FAT32 file limit), pick a target and write. Physical-disk
+//! writes stay disabled until separate boot-disk protection is verified.
 
 use super::super::gui;
 use super::super::taskwin::*;
@@ -82,10 +81,12 @@ fn refresh_enabled(s: &mut State) {
     }
     let has_image = !get_text(s.image).trim().is_empty();
     let choice = s.pane.selection(s.list);
-    let need_confirm = choice.as_ref().map(confirm_required).unwrap_or(false);
+    let write_blocked = choice.as_ref().map(physical_write_blocked).unwrap_or(false);
+    let need_confirm = !write_blocked && choice.as_ref().map(confirm_required).unwrap_or(false);
     set_enabled(s.confirm, need_confirm);
     let confirmed = !need_confirm || get_text(s.confirm).trim() == "ERASE";
-    set_enabled(s.write, has_image && choice.is_some() && confirmed);
+    set_enabled(s.write, has_image && choice.is_some() && confirmed && !write_blocked);
+    set_text(s.status, if write_blocked { if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED } else { "" });
     // The NTFS layout is formatted by the helper, so it needs a
     // physical disk; on a file target it is disabled (and unpicked).
     let file_target = matches!(choice, Some(Choice::File(_, _)));
@@ -110,6 +111,11 @@ fn start(hwnd: HWND) {
         append_line(s.outlog, "Pick a target disk (Refresh disks, or a disk-image file).");
         return;
     };
+    if physical_write_blocked(&choice) {
+        set_text(s.status, if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED);
+        append_line(s.outlog, if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED);
+        return;
+    }
     let scheme = if is_checked(s.lay_ntfs) {
         "gpt-ntfs"
     } else if is_checked(s.lay_gpt) {
@@ -152,11 +158,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             s.lay_mbr = radio(hwnd, ID_LAY_MBR, 108, 47, 150, "MBR + FAT32", true);
             s.lay_gpt = radio(hwnd, ID_LAY_GPT, 268, 47, 150, "GPT + FAT32", false);
             s.lay_ntfs = radio(hwnd, ID_LAY_NTFS, 428, 47, 224, "GPT + NTFS (big install.wim)", false);
-            label(hwnd, 12, 78, 400, "Target (everything on it is erased):");
+            label(hwnd, 12, 78, 640, "Physical writes are disabled; disk-image test files still work:");
             s.list = listbox(hwnd, ID_LIST, 12, 100, 640, 92);
             button(hwnd, ID_REFRESH, 12, 200, 200, "Refresh disks (admin)…");
             button(hwnd, ID_FILE, 220, 200, 210, "Use disk-image file…");
-            label(hwnd, 12, 234, 640, "This target has volumes or is over 64 GB. Type ERASE to allow writing:");
+            label(hwnd, 12, 234, 640, "Physical disk writing is disabled until boot protection is verified.");
             s.confirm = edit(hwnd, ID_CONFIRM, 12, 256, 200, "", false);
             s.write = button(hwnd, ID_WRITE, 428, 254, 104, "Write");
             s.cancel = button(hwnd, ID_CANCEL, 540, 254, 104, "Cancel");
@@ -288,7 +294,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             DefWindowProcW(hwnd, msg, wp, lp)
         }
-        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => ctl_color(wp),
+        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => ctl_color(wp, msg),
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }

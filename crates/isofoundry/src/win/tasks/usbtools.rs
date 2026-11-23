@@ -1,7 +1,6 @@
 //! Shared target picking for the two USB windows: the physical-disk
 //! list (fetched through the elevated helper), a disk-image-file
-//! alternative (the VHDX test route, D-029), the typed-confirmation
-//! rule (ARCHITECTURE.md §7) and the job runner both windows share.
+//! alternative for tests, and the job runner both windows share.
 
 use super::super::helper;
 use super::super::taskwin::*;
@@ -67,6 +66,7 @@ pub fn file_info(path: &str) -> Result<DiskInfo, String> {
     Ok(DiskInfo {
         number: 0,
         model: format!("disk image file {path}"),
+        device_id: String::new(),
         size_bytes: size,
         bus: usbwriter::device::Bus::Virtual,
         removable: false,
@@ -78,13 +78,16 @@ pub fn file_info(path: &str) -> Result<DiskInfo, String> {
     })
 }
 
-/// True when the chosen target needs the typed ERASE confirmation:
-/// physical disks with mounted volumes or over 64 GB.
+/// True when the chosen target needs typed ERASE confirmation.
 pub fn confirm_required(choice: &Choice) -> bool {
     match choice {
         Choice::Disk(info) => needs_typed_confirmation(info),
         Choice::File(_, _) => false,
     }
+}
+
+pub fn physical_write_blocked(choice: &Choice) -> bool {
+    matches!(choice, Choice::Disk(_))
 }
 
 /// Runs the job for the chosen target. Physical disks go through the
@@ -94,7 +97,16 @@ pub fn confirm_required(choice: &Choice) -> bool {
 pub fn run_choice(choice: &Choice, kind: UsbJobKind, sh: &Arc<JobShared>) -> Result<(usize, u64, Vec<String>), String> {
     match choice {
         Choice::Disk(info) => {
-            let job = UsbJob { disk_number: info.number, kind };
+            if if_core::ipc::is_physical_usb_write(&kind) {
+                return Err(if_core::ipc::PHYSICAL_USB_WRITE_BLOCKED.to_string());
+            }
+            let job = UsbJob {
+                disk_number: info.number,
+                expected_model: info.model.clone(),
+                expected_size_bytes: info.size_bytes,
+                expected_device_id: info.device_id.clone(),
+                kind,
+            };
             let last = std::cell::Cell::new(0u64);
             let progress = sh.progress();
             helper::usb_job(&job, |done, total| {

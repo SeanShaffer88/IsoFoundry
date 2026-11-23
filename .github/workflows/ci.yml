@@ -1,7 +1,7 @@
 name: CI
 
-# Builds, lints and tests on Windows with MSVC and a static CRT (D-030,
-# D-043). x64 runs the tests; ARM64 is cross-built (no ARM64 runner tests).
+# Builds, lints and tests Windows 11 x64 with MSVC and a static CRT (D-030,
+# D-043). x64 is the only supported release target.
 # Each build packages the release assets (packaging/package.ps1), installs and
 # uninstalls the x64 Setup.exe, and uploads everything for testing.
 
@@ -26,9 +26,6 @@ jobs:
           - target: x86_64-pc-windows-msvc
             arch: x64
             test: true
-          - target: aarch64-pc-windows-msvc
-            arch: arm64
-            test: false
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
