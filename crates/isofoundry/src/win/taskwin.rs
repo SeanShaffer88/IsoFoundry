@@ -17,12 +17,12 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows_sys::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE};
 use windows_sys::Win32::Graphics::Gdi::{
-    AngleArc, BeginPaint, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, MoveToEx,
-    SelectObject, SetBkColor, SetBkMode, SetTextColor, COLORREF, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER,
-    HBRUSH, HDC, HFONT, PAINTSTRUCT, PS_SOLID, TRANSPARENT,
+    AngleArc, BeginPaint, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, InvalidateRect,
+    MoveToEx, RedrawWindow, SelectObject, SetBkColor, SetBkMode, SetTextColor, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE,
+    DT_VCENTER, HBRUSH, HDC, HFONT, PAINTSTRUCT, PS_SOLID, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, TRANSPARENT,
 };
 use windows_sys::Win32::UI::Controls::Dialogs::{
     GetOpenFileNameW, GetSaveFileNameW, OFN_ALLOWMULTISELECT, OFN_EXPLORER, OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR,
@@ -330,7 +330,7 @@ unsafe extern "system" fn theme_subclass(
     _id: usize,
     _data: usize,
 ) -> LRESULT {
-    if msg == WM_COMMAND && (wp & 0xFFFF) as u16 == LOG_TOGGLE_ID && ((wp >> 16) & 0xFFFF) as u16 == BN_CLICKED {
+    if msg == WM_COMMAND && (wp & 0xFFFF) as u16 == LOG_TOGGLE_ID && ((wp >> 16) & 0xFFFF) as u32 == BN_CLICKED {
         let toggle = GetDlgItem(hwnd, LOG_TOGGLE_ID as i32);
         let log = GetWindowLongPtrW(toggle, GWLP_USERDATA) as HWND;
         if !log.is_null() {
@@ -565,7 +565,7 @@ unsafe extern "system" fn radial_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPAR
             let track = CreatePen(PS_SOLID, px(3, ctx().dpi).max(1), colorref(p.border) as COLORREF);
             let old_pen = SelectObject(dc, track);
             MoveToEx(dc, cx, cy - radius, std::ptr::null_mut());
-            AngleArc(dc, cx, cy, radius, -90.0, 359.9);
+            AngleArc(dc, cx, cy, radius as u32, -90.0, 359.9);
 
             let state = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
             let (sweep, center_text) = if state < 0 {
@@ -578,7 +578,7 @@ unsafe extern "system" fn radial_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPAR
                 let accent = CreatePen(PS_SOLID, px(3, ctx().dpi).max(1), colorref(p.accent) as COLORREF);
                 SelectObject(dc, accent);
                 MoveToEx(dc, cx, cy - radius, std::ptr::null_mut());
-                AngleArc(dc, cx, cy, radius, -90.0, sweep);
+                AngleArc(dc, cx, cy, radius as u32, -90.0, sweep);
                 SelectObject(dc, track);
                 DeleteObject(accent);
             }
@@ -614,7 +614,9 @@ pub(crate) fn progress_show(bar: HWND, frac: Option<f32>) {
             Some(f) => {
                 SendMessageW(bar, WM_SET_RADIAL_PROGRESS, 0, f.clamp(0.0, 1.0).to_bits() as LPARAM);
             }
-            None => SendMessageW(bar, WM_SET_RADIAL_PROGRESS, 1, 0),
+            None => {
+                SendMessageW(bar, WM_SET_RADIAL_PROGRESS, 1, 0);
+            }
         }
     }
 }

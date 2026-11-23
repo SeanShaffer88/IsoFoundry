@@ -139,7 +139,7 @@ enum WorkspaceMode {
     Activity,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum HeaderAction {
     Tasks,
     Activity,
