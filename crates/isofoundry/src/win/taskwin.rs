@@ -238,7 +238,7 @@ pub(crate) fn create_window(owner: HWND, class: &str, title: &str, w: i32, h: i3
         }
         let cls = wide(class);
         let t = wide(title);
-        CreateWindowExW(
+        let hwnd = CreateWindowExW(
             0,
             cls.as_ptr(),
             t.as_ptr(),
@@ -372,7 +372,7 @@ fn child(
     let t = wide(text);
     // SAFETY: creates a child of our own window; strings outlive the call.
     unsafe {
-        CreateWindowExW(
+        let hwnd = CreateWindowExW(
             0,
             cls.as_ptr(),
             t.as_ptr(),
