@@ -238,7 +238,7 @@ pub(crate) fn create_window(owner: HWND, class: &str, title: &str, w: i32, h: i3
         }
         let cls = wide(class);
         let t = wide(title);
-        let hwnd = CreateWindowExW(
+        CreateWindowExW(
             0,
             cls.as_ptr(),
             t.as_ptr(),
@@ -372,7 +372,7 @@ fn child(
     let t = wide(text);
     // SAFETY: creates a child of our own window; strings outlive the call.
     unsafe {
-        let hwnd = CreateWindowExW(
+        CreateWindowExW(
             0,
             cls.as_ptr(),
             t.as_ptr(),
@@ -499,7 +499,7 @@ pub(crate) fn progress_bar(parent: HWND, x: i32, y: i32, _w: i32) -> HWND {
     let label = wide("Progress");
     // SAFETY: custom owner-drawn radial class registered below.
     unsafe {
-        let hwnd = CreateWindowExW(
+        CreateWindowExW(
             0,
             cls.as_ptr(),
             label.as_ptr(),
@@ -512,8 +512,7 @@ pub(crate) fn progress_bar(parent: HWND, x: i32, y: i32, _w: i32) -> HWND {
             std::ptr::null_mut(),
             instance(),
             std::ptr::null(),
-        );
-        hwnd
+        )
     }
 }
 

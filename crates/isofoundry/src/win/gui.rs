@@ -523,7 +523,7 @@ fn close_workspace_drawer(hwnd: HWND) -> bool {
     })
     .unwrap_or((false, std::ptr::null_mut()));
     if changed {
-        with_app(|a| persist_workspace_state(a));
+        with_app(persist_workspace_state);
         relayout_window(hwnd);
         if !fallback_focus.is_null() {
             unsafe { SetFocus(fallback_focus) };
@@ -581,7 +581,7 @@ fn handle_header_command(hwnd: HWND, id: u16) -> bool {
     })
     .unwrap_or(false);
     if changed {
-        with_app(|a| persist_workspace_state(a));
+        with_app(persist_workspace_state);
         relayout_window(hwnd);
         if with_app(|a| a.mode == WorkspaceMode::Activity).unwrap_or(false) {
             if let Some(edit) = with_app(|a| a.activity_edit).filter(|h| !h.is_null()) {
